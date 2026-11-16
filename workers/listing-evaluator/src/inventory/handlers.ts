@@ -45,10 +45,17 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
   const tagReprint = tagReprintParam === '1' || tagReprintParam === 'true' || tagReprintParam === 'yes';
   const noOrderParam = url.searchParams.get('noOrder');
   const noOrder = noOrderParam === '1' || noOrderParam === 'true' || noOrderParam === 'yes';
+  // Comma-separated ids, e.g. storageLocationIds=1,3. Missing or empty = every location.
+  const storageLocationIds = Array.from(new Set(
+    (url.searchParams.get('storageLocationIds') || '')
+      .split(',')
+      .map((part) => Number.parseInt(part.trim(), 10))
+      .filter((id) => Number.isFinite(id) && id > 0),
+  )).slice(0, 50);
   const sortBy = parseInventorySortKey(url.searchParams.get('sortBy'));
   const sortDir = parseInventorySortDir(url.searchParams.get('sortDir'));
 
-  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, shipping, salesChannel, queue, tagReprint, noOrder }, env);
+  const availableBrands = await dbListInventoryBrands({ categoryId, sold, active, marked, personal, shipping, salesChannel, queue, tagReprint, noOrder, storageLocationIds }, env);
 
   const result = await dbListInventoryItems({
     categoryId,
@@ -62,6 +69,7 @@ export async function handleInventoryList(request: Request, env: Env): Promise<R
     salesChannel,
     tagReprint,
     noOrder,
+    storageLocationIds,
     page,
     limit,
     sortBy,

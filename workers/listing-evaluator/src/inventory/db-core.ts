@@ -56,6 +56,8 @@ export type InventoryListFilters = {
   salesChannel: InventorySalesChannelFilter;
   tagReprint: boolean;
   noOrder: boolean;
+  // Empty or missing = every location.
+  storageLocationIds?: number[];
   page: number;
   limit: number;
   sortBy: InventorySortKey;
@@ -138,7 +140,7 @@ export function inventoryOrderBySql(sortBy: InventorySortKey, sortDir: Inventory
   }
 }
 
-export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'tagReprint' | 'noOrder'>): { sql: string; binds: unknown[] } {
+export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categoryId' | 'brand' | 'queue' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'tagReprint' | 'noOrder' | 'storageLocationIds'>): { sql: string; binds: unknown[] } {
   const clauses: string[] = ['1 = 1'];
   const binds: unknown[] = [];
 
@@ -175,6 +177,10 @@ export function inventoryFilterClause(filters: Pick<InventoryListFilters, 'categ
   if (filters.shipping !== 'all') {
     clauses.push('COALESCE(i.allow_shipping, 0) = ?');
     binds.push(filters.shipping === 'yes' ? 1 : 0);
+  }
+  if (filters.storageLocationIds && filters.storageLocationIds.length > 0) {
+    clauses.push(`i.storage_location_id IN (${filters.storageLocationIds.map(() => '?').join(', ')})`);
+    binds.push(...filters.storageLocationIds);
   }
   // "On FBM" has no dedicated boolean column — a Facebook Marketplace listing id is
   // the source of truth for whether an item is currently listed there.
@@ -395,7 +401,7 @@ export async function dbListInventoryItems(
 }
 
 export async function dbListInventoryBrands(
-  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'queue' | 'tagReprint' | 'noOrder'>,
+  filters: Pick<InventoryListFilters, 'categoryId' | 'sold' | 'active' | 'marked' | 'personal' | 'shipping' | 'salesChannel' | 'queue' | 'tagReprint' | 'noOrder' | 'storageLocationIds'>,
   env: Env,
 ): Promise<string[]> {
   const clause = inventoryFilterClause({ ...filters, brand: '' });

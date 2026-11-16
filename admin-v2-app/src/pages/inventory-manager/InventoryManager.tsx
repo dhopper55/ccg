@@ -1,5 +1,5 @@
 import { gxStatusLabel } from 'lib/gearExchange';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useSnackbar } from 'notistack';
 import {
@@ -12,6 +12,7 @@ import {
   FormControl,
   FormControlLabel,
   Avatar,
+  ListItemText,
   IconButton,
   MenuItem,
   Paper,
@@ -28,7 +29,6 @@ import {
   Typography,
   Link,
 } from '@mui/material';
-import Grid from '@mui/material/Grid';
 import { useBreakpoints } from 'providers/BreakpointsProvider';
 import IconifyIcon from 'components/base/IconifyIcon';
 import paths from 'routes/paths';
@@ -87,6 +87,13 @@ type InventoryFilters = {
   shipping: '' | 'yes' | 'no';
   salesChannel: '' | 'ccg_only' | 'ccg_fbm' | 'ccg_reverb' | 'ccg_fbm_reverb' | 'on_gx' | 'not_ccg' | 'not_for_sale';
   tagReprint: boolean;
+  // Empty = every location.
+  storageLocationIds: string[];
+};
+
+type StorageLocationOption = {
+  id: string;
+  name: string;
 };
 
 type InventoryCategoryNode = {
@@ -122,7 +129,30 @@ const DEFAULT_FILTERS: InventoryFilters = {
   shipping: '',
   salesChannel: '',
   tagReprint: false,
+  storageLocationIds: [],
 };
+
+// Extended ("More filters") fields that differ from their defaults.
+function countExtendedFilters(filters: InventoryFilters): number {
+  return [
+    filters.queue !== DEFAULT_FILTERS.queue,
+    filters.shipping !== DEFAULT_FILTERS.shipping,
+    filters.salesChannel !== DEFAULT_FILTERS.salesChannel,
+    filters.sold !== DEFAULT_FILTERS.sold,
+    filters.active !== DEFAULT_FILTERS.active,
+    filters.marked !== DEFAULT_FILTERS.marked,
+    filters.personal !== DEFAULT_FILTERS.personal,
+    filters.tagReprint !== DEFAULT_FILTERS.tagReprint,
+  ].filter(Boolean).length;
+}
+
+const SORT_OPTIONS = [
+  { value: 'updateDate:desc', label: 'Modified Desc' },
+  { value: 'addDate:desc', label: 'Created Desc' },
+] as const;
+
+// Picking "All" in the storage location multi-select clears the selection.
+const ALL_LOCATIONS_VALUE = '__all__';
 
 function formatAddDate(value: string | null | undefined): string {
   if (!value) return '—';
@@ -162,18 +192,33 @@ function escapeCsvField(value: string): string {
 
 const LABEL_CSV_PAGE_SIZE = 100;
 
-const FILTER_CONTROL_WIDTH = 260;
+const FILTER_LABEL_SX = {
+  display: 'block',
+  mb: 0.5,
+  color: 'text.secondary',
+  fontWeight: 600,
+  lineHeight: 1.2,
+} as const;
 
-const FILTER_CONTROL_SX = {
-  width: { xs: '100%', md: FILTER_CONTROL_WIDTH },
-  minWidth: { xs: '100%', md: FILTER_CONTROL_WIDTH },
-  maxWidth: { xs: '100%', md: FILTER_CONTROL_WIDTH },
+const FILTER_SELECT_SX = {
   '& .MuiSelect-select': {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
 } as const;
+
+// A small label above a filter control.
+function FilterField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography component="label" variant="caption" sx={FILTER_LABEL_SX}>
+        {label}
+      </Typography>
+      {children}
+    </Box>
+  );
+}
 
 const InventoryManager = () => {
   const navigate = useNavigate();
@@ -219,6 +264,10 @@ const InventoryManager = () => {
       ? (searchParams.get('salesChannel') as InventoryFilters['salesChannel'])
       : '',
     tagReprint: searchParams.get('tagReprint') === '1' || searchParams.get('tagReprint') === 'true',
+    storageLocationIds: (searchParams.get('storageLocationIds') || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => /^\d+$/.test(id)),
   }));
   const [page, setPage] = useState(() => {
     const parsed = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -239,21 +288,10 @@ const InventoryManager = () => {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-  const [filtersOpen, setFiltersOpen] = useState(() => {
-    return Boolean(
-      searchParams.get('categoryId')
-      || searchParams.get('brand')
-      || searchParams.get('queue')
-      || (searchParams.get('sold') && searchParams.get('sold') !== 'no')
-      || (searchParams.get('active') && searchParams.get('active') !== 'yes')
-      || searchParams.get('marked')
-      || searchParams.get('onlyMarked') === '1'
-      || searchParams.get('personal')
-      || searchParams.get('onlyPersonal') === '1'
-      || searchParams.get('tagReprint') === '1'
-      || searchParams.get('tagReprint') === 'true'
-    );
-  });
+  // Starts open when any extended filter is set (e.g. from a bookmarked URL).
+  const extendedFilterCount = countExtendedFilters(filters);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(() => countExtendedFilters(filters) > 0);
+  const [storageLocationOptions, setStorageLocationOptions] = useState<StorageLocationOption[]>([]);
   const [selectAllChecked, setSelectAllChecked] = useState(false);
   const [isUnmarkingAll, setIsUnmarkingAll] = useState(false);
   const [isMergingMarked, setIsMergingMarked] = useState(false);
@@ -283,6 +321,7 @@ const InventoryManager = () => {
     if (filters.categoryId) params.set('categoryId', filters.categoryId);
     if (filters.brand) params.set('brand', filters.brand);
     if (filters.queue) params.set('queue', filters.queue);
+    if (filters.storageLocationIds.length > 0) params.set('storageLocationIds', filters.storageLocationIds.join(','));
     return params;
   };
 
@@ -305,6 +344,7 @@ const InventoryManager = () => {
     if (filters.shipping) nextParams.set('shipping', filters.shipping);
     if (filters.salesChannel) nextParams.set('salesChannel', filters.salesChannel);
     if (filters.tagReprint) nextParams.set('tagReprint', '1');
+    if (filters.storageLocationIds.length > 0) nextParams.set('storageLocationIds', filters.storageLocationIds.join(','));
 
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
@@ -350,7 +390,29 @@ const InventoryManager = () => {
       }
     };
 
+    // Active locations only (GET /api/admin-v2/storage-locations).
+    const loadStorageLocations = async () => {
+      try {
+        const response = await fetch('/api/admin-v2/storage-locations', {
+          method: 'GET',
+          credentials: 'same-origin',
+        });
+        const data = (await response.json()) as {
+          locations?: Array<{ id: number; name: string; isActive: boolean }>;
+        };
+        if (!response.ok || cancelled) return;
+        setStorageLocationOptions(
+          (data.locations ?? [])
+            .filter((row) => row.isActive)
+            .map((row) => ({ id: String(row.id), name: row.name })),
+        );
+      } catch {
+        /* best effort: the filter just shows no options */
+      }
+    };
+
     void loadCategories();
+    void loadStorageLocations();
 
     return () => {
       cancelled = true;
@@ -1244,41 +1306,100 @@ const InventoryManager = () => {
             }}
           >
             <Stack spacing={1.5}>
-              <Stack
-                direction="row"
+              {/* Core filters: always visible. Two per row on phones. */}
+              <Box
                 sx={{
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  display: 'grid',
                   gap: 1.5,
-                  flexWrap: 'wrap',
+                  alignItems: 'end',
+                  gridTemplateColumns: {
+                    xs: 'repeat(2, minmax(0, 1fr))',
+                    md: 'repeat(4, minmax(0, 220px)) auto',
+                  },
                 }}
               >
-                <Button
-                  variant={filtersOpen ? 'contained' : 'outlined'}
-                  color="inherit"
-                  onClick={() => setFiltersOpen((current) => !current)}
-                  startIcon={<IconifyIcon icon="material-symbols:filter-list-rounded" />}
-                  endIcon={
-                    <IconifyIcon
-                      icon={filtersOpen ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'}
-                    />
-                  }
-                  sx={{
-                    minWidth: 132,
-                    justifyContent: 'space-between',
-                    px: 1.75,
-                  }}
-                >
-                  Filters
-                </Button>
+                <FilterField label="Category">
+                  <FormControl fullWidth size="small">
+                    <Select
+                      displayEmpty
+                      value={filters.categoryId}
+                      onChange={(event) => handleFilterChange('categoryId', event.target.value)}
+                      inputProps={{ 'aria-label': 'Category' }}
+                      sx={FILTER_SELECT_SX}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      {categoryOptions.map((option) => (
+                        <MenuItem key={option.id} value={option.id}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </FilterField>
 
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  {filters.categoryId || filters.brand || filters.queue || filters.sold !== 'no' || filters.active !== 'yes' || filters.marked !== 'all' || filters.personal !== 'all' ? (
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Filters active
-                    </Typography>
-                  ) : null}
-                  <FormControl size="small" sx={{ minWidth: 160 }}>
+                <FilterField label="Brand">
+                  <FormControl fullWidth size="small">
+                    <Select
+                      displayEmpty
+                      value={filters.brand}
+                      onChange={(event) => handleFilterChange('brand', event.target.value)}
+                      inputProps={{ 'aria-label': 'Brand' }}
+                      sx={FILTER_SELECT_SX}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      {availableBrands.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </FilterField>
+
+                <FilterField label="Storage Location">
+                  <FormControl fullWidth size="small">
+                    <Select<string[]>
+                      multiple
+                      displayEmpty
+                      value={filters.storageLocationIds}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        const ids = typeof value === 'string' ? value.split(',') : value;
+                        handleFilterChange(
+                          'storageLocationIds',
+                          ids.includes(ALL_LOCATIONS_VALUE) ? [] : ids,
+                        );
+                      }}
+                      renderValue={(selected) => {
+                        if (selected.length === 0) return 'All';
+                        if (selected.length === 1) {
+                          return storageLocationOptions.find((option) => option.id === selected[0])?.name ?? '1 location';
+                        }
+                        return `${selected.length} locations`;
+                      }}
+                      inputProps={{ 'aria-label': 'Storage location' }}
+                      sx={FILTER_SELECT_SX}
+                    >
+                      <MenuItem value={ALL_LOCATIONS_VALUE}>
+                        <Checkbox size="small" checked={filters.storageLocationIds.length === 0} sx={{ p: 0.5, mr: 1 }} />
+                        <ListItemText primary="All" />
+                      </MenuItem>
+                      {storageLocationOptions.map((option) => (
+                        <MenuItem key={option.id} value={option.id}>
+                          <Checkbox
+                            size="small"
+                            checked={filters.storageLocationIds.includes(option.id)}
+                            sx={{ p: 0.5, mr: 1 }}
+                          />
+                          <ListItemText primary={option.name} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </FilterField>
+
+                <FilterField label="Sort">
+                  <FormControl fullWidth size="small">
                     <Select
                       value={`${sortBy}:${sortDir}`}
                       onChange={(event) => {
@@ -1290,105 +1411,78 @@ const InventoryManager = () => {
                         setSortBy(nextSortBy);
                         setSortDir(nextSortDir);
                       }}
+                      inputProps={{ 'aria-label': 'Sort' }}
+                      sx={FILTER_SELECT_SX}
                     >
-                      <MenuItem value="updateDate:desc">Modified Desc</MenuItem>
-                      <MenuItem value="addDate:desc">Created Desc</MenuItem>
+                      {SORT_OPTIONS.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                      {/* A table-header sort isn't in the list; keep the Select from going blank. */}
+                      {SORT_OPTIONS.some((option) => option.value === `${sortBy}:${sortDir}`) ? null : (
+                        <MenuItem value={`${sortBy}:${sortDir}`} sx={{ display: 'none' }}>
+                          Column sort
+                        </MenuItem>
+                      )}
                     </Select>
                   </FormControl>
+                </FilterField>
+
+                <Stack
+                  direction="row"
+                  sx={{
+                    gridColumn: { xs: '1 / -1', md: 'auto' },
+                    alignItems: 'center',
+                    justifyContent: { xs: 'space-between', md: 'flex-start' },
+                    gap: 1,
+                    minHeight: 40,
+                  }}
+                >
                   <Button
-                    variant="outlined"
+                    variant="text"
                     color="inherit"
-                    onClick={clearFilters}
-                    sx={{ minWidth: 110 }}
+                    size="small"
+                    onClick={() => setMoreFiltersOpen((current) => !current)}
+                    aria-expanded={moreFiltersOpen}
+                    endIcon={
+                      <IconifyIcon
+                        icon={moreFiltersOpen ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'}
+                      />
+                    }
+                    sx={{ whiteSpace: 'nowrap', fontWeight: extendedFilterCount > 0 ? 700 : 500 }}
                   >
+                    {extendedFilterCount > 0 ? `More filters (${extendedFilterCount})` : 'More filters'}
+                  </Button>
+                  <Button variant="text" color="inherit" size="small" onClick={clearFilters}>
                     Clear
                   </Button>
-                  <Button
-                    variant="contained"
-                    loading={isSyncingReverbSales}
-                    onClick={() => void handleReverbSaleSync()}
-                    startIcon={
-                      isSyncingReverbSales ? null : (
-                        <Box component="img" src="/images/reverb-icon.svg" alt="" sx={{ width: 16, height: 16 }} />
-                      )
-                    }
-                    sx={{
-                      bgcolor: 'warning.main',
-                      color: '#fff',
-                      '&:hover': { bgcolor: 'warning.dark' },
-                    }}
-                  >
-                    {isSyncingReverbSales ? 'Syncing...' : 'Reverb Sync'}
-                  </Button>
-                  <Button
-                    variant="contained"
-                    loading={isSyncingGxSales}
-                    onClick={() => void handleGxSaleSync()}
-                    startIcon={
-                      isSyncingGxSales ? null : (
-                        <Box component="img" src="/images/gx-icon-white.svg" alt="" sx={{ width: 16, height: 16 }} />
-                      )
-                    }
-                    sx={{
-                      bgcolor: '#1F2A44',
-                      color: '#fff',
-                      '&:hover': { bgcolor: '#141C2F' },
-                    }}
-                  >
-                    {isSyncingGxSales ? 'Syncing...' : 'GX Sync'}
-                  </Button>
                 </Stack>
-              </Stack>
+              </Box>
 
-              <Collapse in={filtersOpen} timeout="auto" unmountOnExit>
-                <Grid container spacing={2} sx={{ pt: 0.5, alignItems: 'flex-start' }}>
-                  <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
-                    <Grid container direction="column" spacing={2}>
-                      <Grid size={{ xs: 12 }}>
-                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                          <Select
-                          displayEmpty
-                          value={filters.categoryId}
-                          onChange={(event) => handleFilterChange('categoryId', event.target.value)}
-                          inputProps={{ 'aria-label': 'Category' }}
-                        >
-                          <MenuItem value="">Category</MenuItem>
-                          {categoryOptions.map((option) => (
-                            <MenuItem key={option.id} value={option.id}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                        </FormControl>
-                      </Grid>
-
-                      <Grid size={{ xs: 12 }}>
-                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                        <Select
-                          displayEmpty
-                          value={filters.brand}
-                          onChange={(event) => handleFilterChange('brand', event.target.value)}
-                          inputProps={{ 'aria-label': 'Brand' }}
-                        >
-                          <MenuItem value="">Brand</MenuItem>
-                          {availableBrands.map((option) => (
-                            <MenuItem key={option} value={option}>
-                              {option}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-
-                    <Grid size={{ xs: 12 }}>
-                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+              <Collapse in={moreFiltersOpen} timeout="auto" unmountOnExit>
+                <Stack spacing={2} sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gap: 1.5,
+                      alignItems: 'end',
+                      gridTemplateColumns: {
+                        xs: 'repeat(2, minmax(0, 1fr))',
+                        md: 'repeat(auto-fill, minmax(170px, 1fr))',
+                      },
+                    }}
+                  >
+                    <FilterField label="Queue">
+                      <FormControl fullWidth size="small">
                         <Select
                           displayEmpty
                           value={filters.queue}
                           onChange={(event) => handleFilterChange('queue', event.target.value)}
                           inputProps={{ 'aria-label': 'Queue' }}
+                          sx={FILTER_SELECT_SX}
                         >
-                          <MenuItem value="">Queue</MenuItem>
+                          <MenuItem value="">All</MenuItem>
                           <MenuItem value="Triage">Triage</MenuItem>
                           <MenuItem value="Repair">Repair</MenuItem>
                           <MenuItem value="To Sell">To Sell</MenuItem>
@@ -1398,32 +1492,34 @@ const InventoryManager = () => {
                           <MenuItem value="Parking Lot">Parking Lot</MenuItem>
                         </Select>
                       </FormControl>
-                    </Grid>
+                    </FilterField>
 
-                    <Grid size={{ xs: 12 }}>
-                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                    <FilterField label="Shipping">
+                      <FormControl fullWidth size="small">
                         <Select
                           displayEmpty
                           value={filters.shipping}
                           onChange={(event) => handleFilterChange('shipping', event.target.value as InventoryFilters['shipping'])}
-                          inputProps={{ 'aria-label': 'Shipping filter' }}
+                          inputProps={{ 'aria-label': 'Shipping' }}
+                          sx={FILTER_SELECT_SX}
                         >
-                          <MenuItem value="">Shipping</MenuItem>
+                          <MenuItem value="">All</MenuItem>
                           <MenuItem value="yes">Allow</MenuItem>
                           <MenuItem value="no">Don't Allow</MenuItem>
                         </Select>
                       </FormControl>
-                    </Grid>
+                    </FilterField>
 
-                    <Grid size={{ xs: 12 }}>
-                      <FormControl fullWidth sx={FILTER_CONTROL_SX}>
+                    <FilterField label="Sales Channel">
+                      <FormControl fullWidth size="small">
                         <Select
                           displayEmpty
                           value={filters.salesChannel}
                           onChange={(event) => handleFilterChange('salesChannel', event.target.value as InventoryFilters['salesChannel'])}
-                          inputProps={{ 'aria-label': 'Sales channel filter' }}
+                          inputProps={{ 'aria-label': 'Sales channel' }}
+                          sx={FILTER_SELECT_SX}
                         >
-                          <MenuItem value="">Sales Channels</MenuItem>
+                          <MenuItem value="">All</MenuItem>
                           <MenuItem value="ccg_only">CCG Only</MenuItem>
                           <MenuItem value="ccg_fbm">CCG & FBM</MenuItem>
                           <MenuItem value="ccg_reverb">CCG & Reverb</MenuItem>
@@ -1433,97 +1529,132 @@ const InventoryManager = () => {
                           <MenuItem value="not_for_sale">Not For Sale</MenuItem>
                         </Select>
                       </FormControl>
-                    </Grid>
-                  </Grid>
-                </Grid>
+                    </FilterField>
 
-                  <Grid size={{ xs: 12, md: 'grow' }} sx={{ minWidth: 0 }}>
-                    <Grid container spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
-                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                          <Select
-                            value={filters.sold}
-                            onChange={(event) => handleFilterChange('sold', event.target.value as InventoryFilters['sold'])}
-                            inputProps={{ 'aria-label': 'Sold filter' }}
-                          >
-                            <MenuItem value="all">All</MenuItem>
-                            <MenuItem value="yes">Sold</MenuItem>
-                            <MenuItem value="no">UnSold</MenuItem>
-                            <MenuItem value="no_order">Sold, no order</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
-                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                          <Select
-                            value={filters.active}
-                            onChange={(event) => handleFilterChange('active', event.target.value as InventoryFilters['active'])}
-                            inputProps={{ 'aria-label': 'Active filter' }}
-                          >
-                            <MenuItem value="all">All</MenuItem>
-                            <MenuItem value="yes">Active</MenuItem>
-                            <MenuItem value="no">In-Active</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
-                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                          <Select
-                            value={filters.marked}
-                            onChange={(event) => handleFilterChange('marked', event.target.value as InventoryFilters['marked'])}
-                            inputProps={{ 'aria-label': 'Marked filter' }}
-                          >
-                            <MenuItem value="all">All</MenuItem>
-                            <MenuItem value="yes">Marked</MenuItem>
-                            <MenuItem value="no">UnMarked</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0 }}>
-                        <FormControl fullWidth sx={FILTER_CONTROL_SX}>
-                          <Select
-                            value={filters.personal}
-                            onChange={(event) => handleFilterChange('personal', event.target.value as InventoryFilters['personal'])}
-                            inputProps={{ 'aria-label': 'Personal filter' }}
-                          >
-                            <MenuItem value="all">All</MenuItem>
-                            <MenuItem value="yes">Personal</MenuItem>
-                            <MenuItem value="no">Not Personal</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-
-                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={filters.tagReprint}
-                              onChange={(event) => handleFilterChange('tagReprint', event.target.checked)}
-                            />
-                          }
-                          label="Tag Reprints"
-                        />
-                      </Grid>
-
-                      <Grid size={{ xs: 12, md: 'auto' }} sx={{ flexGrow: 0, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                        <Button
-                          variant="outlined"
-                          color="inherit"
-                          loading={isExportingLabelCsv}
-                          disabled={total === 0}
-                          onClick={() => void handleLabelCsvDownload()}
-                          startIcon={<IconifyIcon icon="material-symbols:download-rounded" />}
+                    <FilterField label="Sold">
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={filters.sold}
+                          onChange={(event) => handleFilterChange('sold', event.target.value as InventoryFilters['sold'])}
+                          inputProps={{ 'aria-label': 'Sold' }}
+                          sx={FILTER_SELECT_SX}
                         >
-                          Label CSV
-                        </Button>
-                      </Grid>
+                          <MenuItem value="all">All</MenuItem>
+                          <MenuItem value="yes">Sold</MenuItem>
+                          <MenuItem value="no">UnSold</MenuItem>
+                          <MenuItem value="no_order">Sold, no order</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </FilterField>
 
-                    </Grid>
-                  </Grid>
-                </Grid>
+                    <FilterField label="Active">
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={filters.active}
+                          onChange={(event) => handleFilterChange('active', event.target.value as InventoryFilters['active'])}
+                          inputProps={{ 'aria-label': 'Active' }}
+                          sx={FILTER_SELECT_SX}
+                        >
+                          <MenuItem value="all">All</MenuItem>
+                          <MenuItem value="yes">Active</MenuItem>
+                          <MenuItem value="no">In-Active</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </FilterField>
+
+                    <FilterField label="Marked">
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={filters.marked}
+                          onChange={(event) => handleFilterChange('marked', event.target.value as InventoryFilters['marked'])}
+                          inputProps={{ 'aria-label': 'Marked' }}
+                          sx={FILTER_SELECT_SX}
+                        >
+                          <MenuItem value="all">All</MenuItem>
+                          <MenuItem value="yes">Marked</MenuItem>
+                          <MenuItem value="no">UnMarked</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </FilterField>
+
+                    <FilterField label="Personal">
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={filters.personal}
+                          onChange={(event) => handleFilterChange('personal', event.target.value as InventoryFilters['personal'])}
+                          inputProps={{ 'aria-label': 'Personal' }}
+                          sx={FILTER_SELECT_SX}
+                        >
+                          <MenuItem value="all">All</MenuItem>
+                          <MenuItem value="yes">Personal</MenuItem>
+                          <MenuItem value="no">Not Personal</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </FilterField>
+
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={filters.tagReprint}
+                          onChange={(event) => handleFilterChange('tagReprint', event.target.checked)}
+                        />
+                      }
+                      label="Tag Reprints"
+                      sx={{ m: 0, minHeight: 40 }}
+                    />
+                  </Box>
+
+                  <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      loading={isSyncingReverbSales}
+                      onClick={() => void handleReverbSaleSync()}
+                      startIcon={
+                        isSyncingReverbSales ? null : (
+                          <Box component="img" src="/images/reverb-icon.svg" alt="" sx={{ width: 16, height: 16 }} />
+                        )
+                      }
+                      sx={{
+                        bgcolor: 'warning.main',
+                        color: '#fff',
+                        '&:hover': { bgcolor: 'warning.dark' },
+                      }}
+                    >
+                      {isSyncingReverbSales ? 'Syncing...' : 'Reverb Sync'}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      loading={isSyncingGxSales}
+                      onClick={() => void handleGxSaleSync()}
+                      startIcon={
+                        isSyncingGxSales ? null : (
+                          <Box component="img" src="/images/gx-icon-white.svg" alt="" sx={{ width: 16, height: 16 }} />
+                        )
+                      }
+                      sx={{
+                        bgcolor: '#1F2A44',
+                        color: '#fff',
+                        '&:hover': { bgcolor: '#141C2F' },
+                      }}
+                    >
+                      {isSyncingGxSales ? 'Syncing...' : 'GX Sync'}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="inherit"
+                      size="small"
+                      loading={isExportingLabelCsv}
+                      disabled={total === 0}
+                      onClick={() => void handleLabelCsvDownload()}
+                      startIcon={<IconifyIcon icon="material-symbols:download-rounded" />}
+                    >
+                      Label CSV
+                    </Button>
+                  </Stack>
+                </Stack>
               </Collapse>
             </Stack>
           </Paper>

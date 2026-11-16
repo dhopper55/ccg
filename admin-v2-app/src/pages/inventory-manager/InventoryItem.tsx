@@ -1,4 +1,4 @@
-import { ChangeEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, MouseEvent, ReactNode, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   Alert,
@@ -6,9 +6,11 @@ import {
   Avatar,
   Box,
   Button,
+  ButtonBase,
   Checkbox,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -20,6 +22,7 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -603,6 +606,155 @@ const notesFieldSx = {
     lineHeight: 1.5,
   },
 };
+
+// Collapsible page sections. Open state resets per item (see initial rules in the component).
+type SectionKey = 'otherCosts' | 'extDesc' | 'aiAnalysis' | 'selling' | 'specs' | 'sold';
+
+const SPEC_FIELD_KEYS = [
+  'weightLbs',
+  'neckProfile',
+  'neckThickness',
+  'nutWidth',
+  'width12Fret',
+  'fretboardRadius',
+  'twelveFretAction',
+] as const;
+
+function formatSummaryMoney(value: string): string | null {
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return `$${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+}
+
+const CLOSED_SECTIONS: Record<SectionKey, boolean> = {
+  otherCosts: false,
+  extDesc: false,
+  aiAnalysis: false,
+  selling: false,
+  specs: false,
+  sold: false,
+};
+
+function SectionSummaryText({ children }: { children: ReactNode }) {
+  return (
+    <Typography variant="body2" noWrap sx={{ color: 'text.secondary', minWidth: 0 }}>
+      {children}
+    </Typography>
+  );
+}
+
+// A one-line header (chevron, title, short summary) that expands to show its content.
+// `action` sits on the right of the header, outside the toggle.
+function CollapsibleSection({
+  title,
+  summary,
+  open,
+  onToggle,
+  action,
+  sectionRef,
+  children,
+}: {
+  title: string;
+  summary?: ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  action?: ReactNode;
+  sectionRef?: Ref<HTMLDivElement>;
+  children: ReactNode;
+}) {
+  return (
+    <Paper
+      ref={sectionRef}
+      variant="outlined"
+      sx={{ borderRadius: 3, bgcolor: 'background.default', scrollMarginTop: 96 }}
+    >
+      <Stack direction="row" sx={{ alignItems: 'center', gap: 1, pr: action ? 1.5 : 0 }}>
+        <ButtonBase
+          onClick={onToggle}
+          aria-expanded={open}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            justifyContent: 'flex-start',
+            gap: 1,
+            px: 2,
+            py: 1.25,
+            minHeight: 48,
+            textAlign: 'left',
+            borderRadius: 3,
+          }}
+        >
+          <IconifyIcon
+            icon={open ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'}
+            fontSize={20}
+            style={{ flexShrink: 0 }}
+          />
+          <Typography
+            variant="overline"
+            sx={{ color: 'text.secondary', letterSpacing: 0.6, lineHeight: 1.5, flexShrink: 0 }}
+          >
+            {title}
+          </Typography>
+          {summary ? (
+            <Box sx={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 1, overflow: 'hidden' }}>
+              {summary}
+            </Box>
+          ) : null}
+        </ButtonBase>
+        {action}
+      </Stack>
+      <Collapse in={open} timeout="auto">
+        <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 1, pb: 2.5 }}>{children}</Box>
+      </Collapse>
+    </Paper>
+  );
+}
+
+// An on/off flag shown as a pill: filled when on. Without onChange it is read-only.
+function FlagChip({
+  label,
+  checked,
+  onChange,
+  tooltip,
+}: {
+  label: string;
+  checked: boolean;
+  onChange?: (next: boolean) => void;
+  tooltip?: string;
+}) {
+  const chip = (
+    <Chip
+      label={label}
+      size="small"
+      role="checkbox"
+      aria-checked={checked}
+      aria-readonly={onChange ? undefined : true}
+      onClick={onChange ? () => onChange(!checked) : undefined}
+      color={checked ? 'primary' : 'default'}
+      variant={checked ? 'filled' : 'outlined'}
+      icon={
+        <IconifyIcon
+          icon={
+            onChange
+              ? checked
+                ? 'material-symbols:check-rounded'
+                : 'material-symbols:add-rounded'
+              : 'material-symbols:lock-outline'
+          }
+          fontSize={15}
+        />
+      }
+      sx={{ fontWeight: 600, height: 30, px: 0.5, cursor: onChange ? 'pointer' : 'default' }}
+    />
+  );
+  return tooltip ? (
+    <Tooltip title={tooltip}>
+      <span>{chip}</span>
+    </Tooltip>
+  ) : (
+    chip
+  );
+}
 
 type PhotoAnalysisFields = {
   title: string;
@@ -2541,6 +2693,11 @@ const InventoryItem = () => {
     if (forSaleValidationError) {
       setMessage({ severity: 'error', text: forSaleValidationError });
       enqueueSnackbar(forSaleValidationError, { variant: 'error' });
+      // Show the missing Sale Details field.
+      openSection('selling');
+      window.requestAnimationFrame(() => {
+        sellingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       return;
     }
     if (!Number.isInteger(form.quantity) || form.quantity < 0) {
@@ -2701,6 +2858,71 @@ const InventoryItem = () => {
   };
 
   const hasUnsavedChanges = () => buildFullFormSnapshot(form, images, tags) !== lastSavedFullSnapshotRef.current;
+  // For the "Unsaved changes" dot in the save bar.
+  const currentFullSnapshot = useMemo(() => buildFullFormSnapshot(form, images, tags), [form, images, tags]);
+  const isDirty = !isLoading && currentFullSnapshot !== lastSavedFullSnapshotRef.current;
+
+  // Collapsible sections. Each item starts with everything closed except Selling (when For Sale)
+  // and Sold (when Is Sold). Turning For Sale or Is Sold on later opens that section too.
+  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>(CLOSED_SECTIONS);
+  const sectionsInitKeyRef = useRef<string | null>(null);
+  const sellingSectionRef = useRef<HTMLDivElement>(null);
+  const toggleSection = (key: SectionKey) =>
+    setOpenSections((current) => ({ ...current, [key]: !current[key] }));
+  const openSection = (key: SectionKey) =>
+    setOpenSections((current) => (current[key] ? current : { ...current, [key]: true }));
+
+  useEffect(() => {
+    if (isLoading) return;
+    const itemKey = editId || 'new';
+    if (sectionsInitKeyRef.current === itemKey) return;
+    sectionsInitKeyRef.current = itemKey;
+    setOpenSections({ ...CLOSED_SECTIONS, selling: form.forSale, sold: form.isSold });
+  }, [isLoading, editId, form.forSale, form.isSold]);
+
+  useEffect(() => {
+    if (form.forSale) openSection('selling');
+  }, [form.forSale]);
+
+  // One-line summaries shown on the collapsed section headers.
+  const otherCostsSummary = [
+    formatSummaryMoney(form.mapPrice) ? `MAP ${formatSummaryMoney(form.mapPrice)}` : null,
+    formatSummaryMoney(form.shipCost) ? `Ship ${formatSummaryMoney(form.shipCost)}` : null,
+    Number.parseFloat(form.miles) > 0 ? `${form.miles} mi` : null,
+    Number.parseFloat(form.minutesSpent) > 0 ? `${form.minutesSpent} min` : null,
+  ].filter(Boolean).join(' · ') || 'MAP, ship, miles, minutes';
+  const extDescSummary = [
+    form.repairNotes.trim() ? 'Repair notes' : null,
+    form.originalListingDesc.trim() ? 'Original desc.' : null,
+  ].filter(Boolean).join(' · ') || 'Empty';
+  const hasAiAnalysis = analysisHtmlToText(form.aiAnalysisText).trim() !== '';
+  const activeChannelLabels = [
+    form.salesChannelCcg ? 'CCG' : null,
+    form.salesChannelCl ? 'CL' : null,
+    form.fbListingId.trim() ? 'FBM' : null,
+    form.salesChannelReverb ? 'Reverb' : null,
+    gxListing ? 'GX' : null,
+    form.metaStore ? 'Meta' : null,
+    form.salesChannelOfferUp ? 'OfferUp' : null,
+    form.salesChannelEbay ? 'EBay' : null,
+    form.salesChannelNextdoor ? 'Nextdoor' : null,
+    form.salesChannelOther ? 'Other' : null,
+  ].filter(Boolean);
+  const sellingSummary = form.forSale
+    ? [
+        formatSummaryMoney(form.salePrice),
+        form.condition.trim() || null,
+        activeChannelLabels.length ? activeChannelLabels.join(', ') : 'No channels',
+      ].filter(Boolean).join(' · ')
+    : 'Not for sale';
+  const specsFilledCount = SPEC_FIELD_KEYS.filter((key) => String(form[key] ?? '').trim()).length;
+  const soldSummary = form.isSold
+    ? [formatSummaryMoney(form.soldAmount), form.soldChannel || null].filter(Boolean).join(' · ') || 'Sold'
+    : 'Not sold';
+
+  useEffect(() => {
+    if (form.isSold) openSection('sold');
+  }, [form.isSold]);
 
   const handleGxToggle = async () => {
     if (mode !== 'edit' || !editId || isGxActionPending) return;
@@ -3725,35 +3947,8 @@ const InventoryItem = () => {
                 </TextField>
               </Grid>
 
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  multiline
-                  minRows={3}
-                  maxRows={4}
-                  label="Repair/Cleaning Notes"
-                  value={form.repairNotes}
-                  onChange={(event) => setField('repairNotes', event.target.value)}
-                  inputProps={{ maxLength: 12000 }}
-                  sx={notesFieldSx}
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  multiline
-                  minRows={3}
-                  maxRows={4}
-                  label="Original Listing Desc."
-                  value={form.originalListingDesc}
-                  onChange={(event) => setField('originalListingDesc', event.target.value)}
-                  inputProps={{ maxLength: 12000 }}
-                  sx={notesFieldSx}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, md: 2 }}>
+              {/* Core costs. The rest sit under "Other costs". */}
+              <Grid size={{ xs: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   label="Unit Cost ($)"
@@ -3793,17 +3988,7 @@ const InventoryItem = () => {
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 2 }}>
-                <TextField
-                  fullWidth
-                  label="MAP Price ($)"
-                  type="number"
-                  value={form.mapPrice}
-                  onChange={(event) => setField('mapPrice', event.target.value)}
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 2 }}>
+              <Grid size={{ xs: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   label="Private Party Value ($)"
@@ -3813,36 +3998,67 @@ const InventoryItem = () => {
                   inputProps={{ min: 0, step: 0.01 }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 2 }}>
-                <TextField
-                  fullWidth
-                  label="Miles"
-                  type="number"
-                  value={form.miles}
-                  onChange={(event) => setField('miles', event.target.value)}
-                  inputProps={{ min: 0, step: 1 }}
-                />
+              <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', alignItems: 'center' }}>
+                <ButtonBase
+                  onClick={() => toggleSection('otherCosts')}
+                  aria-expanded={openSections.otherCosts}
+                  sx={{ gap: 1, px: 1.5, py: 1, borderRadius: 2, minWidth: 0, maxWidth: 1, justifyContent: 'flex-start' }}
+                >
+                  <IconifyIcon
+                    icon={openSections.otherCosts ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'}
+                    fontSize={20}
+                    style={{ flexShrink: 0 }}
+                  />
+                  <Typography variant="body2" sx={{ fontWeight: 600, flexShrink: 0 }}>
+                    Other costs
+                  </Typography>
+                  <SectionSummaryText>{otherCostsSummary}</SectionSummaryText>
+                </ButtonBase>
               </Grid>
-              <Grid size={{ xs: 12, md: 2 }}>
-                <TextField
-                  fullWidth
-                  label="Minutes Spent"
-                  type="number"
-                  value={form.minutesSpent}
-                  onChange={(event) => setField('minutesSpent', event.target.value)}
-                  inputProps={{ min: 0, step: 1 }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 2 }}>
-                <TextField
-                  fullWidth
-                  label="Ship Cost ($)"
-                  type="number"
-                  value={form.shipCost}
-                  onChange={(event) => setField('shipCost', event.target.value)}
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-              </Grid>
+              {openSections.otherCosts ? (
+                <>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="MAP Price ($)"
+                      type="number"
+                      value={form.mapPrice}
+                      onChange={(event) => setField('mapPrice', event.target.value)}
+                      inputProps={{ min: 0, step: 0.01 }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Miles"
+                      type="number"
+                      value={form.miles}
+                      onChange={(event) => setField('miles', event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Minutes Spent"
+                      type="number"
+                      value={form.minutesSpent}
+                      onChange={(event) => setField('minutesSpent', event.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Ship Cost ($)"
+                      type="number"
+                      value={form.shipCost}
+                      onChange={(event) => setField('shipCost', event.target.value)}
+                      inputProps={{ min: 0, step: 0.01 }}
+                    />
+                  </Grid>
+                </>
+              ) : null}
 
               <Grid size={12}>
                 <Autocomplete
@@ -3880,7 +4096,7 @@ const InventoryItem = () => {
                 <TextField
                   fullWidth
                   multiline
-                  minRows={3}
+                  minRows={2}
                   label="Purchase Notes"
                   value={form.purchaseNotes}
                   onChange={(event) => setField('purchaseNotes', event.target.value)}
@@ -3888,1002 +4104,982 @@ const InventoryItem = () => {
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, md: 9 }}>
-                {buildHtmlPreviewNode(
-                  form.aiAnalysisText,
-                  'Click to add AI analysis text.',
-                  openAiAnalysisDialog,
-                )}
-              </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
-                <Button
-                  fullWidth
-                  sx={{ whiteSpace: 'normal', lineHeight: 1.3, py: 1.25 }}
-                  variant="outlined"
-                  color="primary"
-                  onClick={openPhotoAnalysisDialog}
-                  disabled={isUploading}
-                  startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
+              <Grid size={12}>
+                <CollapsibleSection
+                  title="Ext. Description Details"
+                  summary={<SectionSummaryText>{extDescSummary}</SectionSummaryText>}
+                  open={openSections.extDesc}
+                  onToggle={() => toggleSection('extDesc')}
                 >
-                  AI Analysis &amp; Listing Tools
-                </Button>
+                  <Stack spacing={2.5} sx={{ pt: 1 }}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      maxRows={12}
+                      label="Repair/Cleaning Notes"
+                      value={form.repairNotes}
+                      onChange={(event) => setField('repairNotes', event.target.value)}
+                      inputProps={{ maxLength: 12000 }}
+                      sx={notesFieldSx}
+                    />
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      maxRows={12}
+                      label="Original Listing Desc."
+                      value={form.originalListingDesc}
+                      onChange={(event) => setField('originalListingDesc', event.target.value)}
+                      inputProps={{ maxLength: 12000 }}
+                      sx={notesFieldSx}
+                    />
+                  </Stack>
+                </CollapsibleSection>
               </Grid>
 
               <Grid size={12}>
-                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
-                  <Stack direction="row" sx={{ gap: 3, flexWrap: 'wrap' }}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.isActive}
-                          onChange={(event) => setField('isActive', event.target.checked)}
-                        />
-                      }
-                      label="Is Active"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.isMarked}
-                          onChange={(event) => setField('isMarked', event.target.checked)}
-                        />
-                      }
-                      label="Is Marked"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.isPersonal}
-                          onChange={(event) => setField('isPersonal', event.target.checked)}
-                        />
-                      }
-                      label="Is Personal"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.isConsignment}
-                          onChange={(event) => setField('isConsignment', event.target.checked)}
-                        />
-                      }
-                      label="Is Consignment"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.isRented}
-                          onChange={(event) => setField('isRented', event.target.checked)}
-                        />
-                      }
-                      label="Is Rented"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.isCustom}
-                          onChange={(event) => setField('isCustom', event.target.checked)}
-                        />
-                      }
-                      label="Is Custom"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.forSale}
-                          disabled={form.isSold}
-                          onChange={(event) => setField('forSale', event.target.checked)}
-                        />
-                      }
-                      label={form.isSold ? 'For Sale (uncheck Is Sold first)' : 'For Sale'}
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.onlyInStore}
-                          onChange={(event) => setField('onlyInStore', event.target.checked)}
-                        />
-                      }
-                      label="Only in-store"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.tagReprint}
-                          onChange={(event) => setField('tagReprint', event.target.checked)}
-                        />
-                      }
-                      label="Tag Reprint"
-                    />
-                  </Stack>
+                <CollapsibleSection
+                  title="AI Analysis"
+                  summary={
+                    hasAiAnalysis ? (
+                      <Chip
+                        size="small"
+                        color="success"
+                        variant="soft"
+                        label="Populated"
+                        icon={<IconifyIcon icon="material-symbols:check-circle-rounded" fontSize={16} />}
+                      />
+                    ) : (
+                      <SectionSummaryText>Empty</SectionSummaryText>
+                    )
+                  }
+                  open={openSections.aiAnalysis}
+                  onToggle={() => toggleSection('aiAnalysis')}
+                  action={
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      onClick={openPhotoAnalysisDialog}
+                      disabled={isUploading}
+                      startIcon={<IconifyIcon icon="material-symbols:imagesmode-rounded" />}
+                      sx={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                    >
+                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                        AI Analysis &amp;&nbsp;
+                      </Box>
+                      Listing Tools
+                    </Button>
+                  }
+                >
+                  {buildHtmlPreviewNode(
+                    form.aiAnalysisText,
+                    'Click to add AI analysis text.',
+                    openAiAnalysisDialog,
+                  )}
+                </CollapsibleSection>
+              </Grid>
 
-                  <TextField
-                    select
-                    label="Subscription"
-                    value={form.subscriptionId}
-                    onChange={(event) => setField('subscriptionId', event.target.value)}
-                    size="small"
-                    sx={{ mt: 2, minWidth: 250 }}
-                  >
-                    <MenuItem value="">
-                      <em>None</em>
-                    </MenuItem>
-                    {subscriptionOptions.map((sub) => (
-                      <MenuItem key={sub.id} value={sub.id}>
-                        {sub.name}
+              {/* Status flags: tap a pill to turn it on or off. */}
+              <Grid size={12}>
+                <Paper variant="outlined" sx={{ px: 2, py: 1.5, borderRadius: 3, bgcolor: 'background.default' }}>
+                  <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Typography
+                      variant="overline"
+                      sx={{ color: 'text.secondary', letterSpacing: 0.6, lineHeight: 1.5, mr: 0.5 }}
+                    >
+                      Status
+                    </Typography>
+                    <FlagChip label="Active" checked={form.isActive} onChange={(next) => setField('isActive', next)} />
+                    <FlagChip label="Marked" checked={form.isMarked} onChange={(next) => setField('isMarked', next)} />
+                    <FlagChip label="Personal" checked={form.isPersonal} onChange={(next) => setField('isPersonal', next)} />
+                    <FlagChip
+                      label="Consignment"
+                      checked={form.isConsignment}
+                      onChange={(next) => setField('isConsignment', next)}
+                    />
+                    <FlagChip label="Rented" checked={form.isRented} onChange={(next) => setField('isRented', next)} />
+                    <FlagChip label="Custom" checked={form.isCustom} onChange={(next) => setField('isCustom', next)} />
+                    <FlagChip
+                      label="Only in-store"
+                      checked={form.onlyInStore}
+                      onChange={(next) => setField('onlyInStore', next)}
+                    />
+                    <FlagChip label="Tag Reprint" checked={form.tagReprint} onChange={(next) => setField('tagReprint', next)} />
+                    <FlagChip label="Sold" checked={form.isSold} onChange={(next) => setField('isSold', next)} />
+                    <TextField
+                      select
+                      label="Subscription"
+                      value={form.subscriptionId}
+                      onChange={(event) => setField('subscriptionId', event.target.value)}
+                      size="small"
+                      sx={{ width: { xs: 1, sm: 220 }, ml: { sm: 'auto' } }}
+                    >
+                      <MenuItem value="">
+                        <em>None</em>
                       </MenuItem>
-                    ))}
-                  </TextField>
+                      {subscriptionOptions.map((sub) => (
+                        <MenuItem key={sub.id} value={sub.id}>
+                          {sub.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Stack>
                 </Paper>
               </Grid>
 
+              {/* Selling: channels, listing actions and sale details. Opens when For Sale is on. */}
               <Grid size={12}>
-                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
-                  <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
-                    Active sales channels
-                  </Typography>
-                  <Stack direction="row" sx={{ gap: 3, flexWrap: 'wrap', mt: 1 }}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelCcg}
-                          onChange={(event) => setField('salesChannelCcg', event.target.checked)}
-                        />
-                      }
-                      label="CCG"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelCl}
-                          onChange={(event) => setField('salesChannelCl', event.target.checked)}
-                        />
-                      }
-                      label="CL"
-                    />
-                    <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
-                      <TextField
-                        size="small"
-                        label="FBM Listing ID"
-                        value={form.fbListingId}
-                        onChange={(event) => setField('fbListingId', event.target.value)}
-                        sx={{ minWidth: 200 }}
-                      />
-                      <FbmListingLink fbListingId={form.fbListingId} />
-                    </Stack>
-                    <Tooltip title="Managed automatically by the Add to Reverb / Delete From Reverb action below.">
+                <CollapsibleSection
+                  sectionRef={sellingSectionRef}
+                  title="Selling"
+                  summary={<SectionSummaryText>{sellingSummary}</SectionSummaryText>}
+                  open={openSections.selling}
+                  onToggle={() => toggleSection('selling')}
+                  action={
+                    <Tooltip title={form.isSold ? 'Turn off Sold first' : ''}>
                       <FormControlLabel
-                        control={<Checkbox checked={form.salesChannelReverb} disabled />}
-                        label="Reverb"
+                        control={
+                          <Switch
+                            size="small"
+                            checked={form.forSale}
+                            disabled={form.isSold}
+                            onChange={(event) => setField('forSale', event.target.checked)}
+                          />
+                        }
+                        label="For Sale"
+                        labelPlacement="start"
+                        sx={{
+                          m: 0,
+                          gap: 0.5,
+                          flexShrink: 0,
+                          '& .MuiFormControlLabel-label': { fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' },
+                        }}
                       />
                     </Tooltip>
-                    <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
-                      <Tooltip title="Managed automatically by the Add to GX / Delete From GX action below.">
-                        <FormControlLabel
-                          control={<Checkbox checked={Boolean(gxListing)} disabled />}
-                          label="Gear Exch."
-                          sx={{ mr: 0 }}
+                  }
+                >
+                  <Stack spacing={2.5}>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 600 }}>
+                        Channels
+                      </Typography>
+                      <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <FlagChip label="CCG" checked={form.salesChannelCcg} onChange={(next) => setField('salesChannelCcg', next)} />
+                        <FlagChip label="CL" checked={form.salesChannelCl} onChange={(next) => setField('salesChannelCl', next)} />
+                        <FlagChip label="Meta Store" checked={form.metaStore} onChange={(next) => setField('metaStore', next)} />
+                        <FlagChip
+                          label="OfferUp"
+                          checked={form.salesChannelOfferUp}
+                          onChange={(next) => setField('salesChannelOfferUp', next)}
                         />
-                      </Tooltip>
-                      {gxListing ? (
-                        <>
-                          <Chip
+                        <FlagChip label="EBay" checked={form.salesChannelEbay} onChange={(next) => setField('salesChannelEbay', next)} />
+                        <FlagChip
+                          label="Nextdoor"
+                          checked={form.salesChannelNextdoor}
+                          onChange={(next) => setField('salesChannelNextdoor', next)}
+                        />
+                        <FlagChip label="Other" checked={form.salesChannelOther} onChange={(next) => setField('salesChannelOther', next)} />
+                        <FlagChip
+                          label="Reverb"
+                          checked={form.salesChannelReverb}
+                          tooltip="Set automatically by the Add to Reverb / Delete From Reverb button below."
+                        />
+                        <FlagChip
+                          label="Gear Exch."
+                          checked={Boolean(gxListing)}
+                          tooltip="Set automatically by the Add to GX / Delete From GX button below."
+                        />
+                        {gxListing ? (
+                          <>
+                            <Chip
+                              size="small"
+                              label={`${gxStatusLabel(gxListing.gxStatus)} · ${gxListing.payoutMethod === 'store_credit' ? 'gift card' : 'cash'}`}
+                              color={gxListing.gxStatus === 'published' ? 'success' : 'default'}
+                              variant="outlined"
+                            />
+                            <GxListingLink gxListingId={gxListing.gxListingId} title={form.saleTitle} brand={form.brand} />
+                          </>
+                        ) : null}
+                      </Stack>
+                      <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, mt: 1.5 }}>
+                        <TextField
+                          size="small"
+                          label="FBM Listing ID"
+                          value={form.fbListingId}
+                          onChange={(event) => setField('fbListingId', event.target.value)}
+                          sx={{ width: { xs: 1, sm: 260 } }}
+                        />
+                        <FbmListingLink fbListingId={form.fbListingId} />
+                      </Stack>
+                    </Box>
+
+                    <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                      <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on FBM.' : (form.fbListingId.trim() ? 'Already listed on FBM.' : '')}>
+                        <span>
+                          <Button
                             size="small"
-                            label={`${gxStatusLabel(gxListing.gxStatus)} · ${gxListing.payoutMethod === 'store_credit' ? 'gift card' : 'cash'}`}
-                            color={gxListing.gxStatus === 'published' ? 'success' : 'default'}
-                            variant="outlined"
-                          />
-                          <GxListingLink gxListingId={gxListing.gxListingId} title={form.saleTitle} brand={form.brand} />
-                        </>
+                            variant="contained"
+                            disabled={mode !== 'edit' || Boolean(form.fbListingId.trim())}
+                            onClick={() => setFbmCommandOpen(true)}
+                            startIcon={<Box component="img" src="/images/fb.png" alt="" sx={{ width: 16, height: 16 }} />}
+                            sx={mode === 'edit' && !form.fbListingId.trim() ? { bgcolor: '#1877F2', color: '#fff', '&:hover': { bgcolor: '#166FE5' } } : undefined}
+                          >
+                            Add to FBM
+                          </Button>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Reverb.' : ''}>
+                        <span>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            disabled={mode !== 'edit' || isReverbActionPending}
+                            onClick={handleReverbToggle}
+                            startIcon={
+                              isReverbActionPending ? (
+                                <CircularProgress color="inherit" size={16} />
+                              ) : (
+                                <Box component="img" src="/images/reverb-icon.svg" alt="" sx={{ width: 16, height: 16 }} />
+                              )
+                            }
+                            sx={mode === 'edit' ? {
+                              bgcolor: form.reverbListingId ? 'error.main' : 'warning.main',
+                              color: '#fff',
+                              '&:hover': { bgcolor: form.reverbListingId ? 'error.dark' : 'warning.dark' },
+                            } : undefined}
+                          >
+                            {isReverbActionPending
+                              ? 'Working...'
+                              : (form.reverbListingId ? 'Delete From Reverb' : 'Add to Reverb')}
+                          </Button>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Gear Exchange.' : (gxListing?.lastError ? `Last GX error: ${gxListing.lastError}` : '')}>
+                        <span>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            disabled={mode !== 'edit' || isGxActionPending}
+                            onClick={() => void handleGxToggle()}
+                            startIcon={
+                              isGxActionPending ? (
+                                <CircularProgress color="inherit" size={16} />
+                              ) : (
+                                <Box component="img" src="/images/gx-icon-white.svg" alt="" sx={{ width: 16, height: 16 }} />
+                              )
+                            }
+                            sx={mode === 'edit' ? {
+                              bgcolor: gxListing ? 'error.main' : '#1F2A44',
+                              color: '#fff',
+                              '&:hover': { bgcolor: gxListing ? 'error.dark' : '#141C2F' },
+                            } : undefined}
+                          >
+                            {isGxActionPending ? 'Working...' : (gxListing ? 'Delete From GX' : 'Add to GX')}
+                          </Button>
+                        </span>
+                      </Tooltip>
+                      {gxListing?.gxStatus === 'draft' ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={isGxActionPending}
+                          onClick={() => void handleGxPublish()}
+                          startIcon={<Box component="img" src="/images/gx-icon.svg" alt="" sx={{ width: 16, height: 16 }} />}
+                        >
+                          Publish on GX
+                        </Button>
                       ) : null}
                     </Stack>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.metaStore}
-                          onChange={(event) => setField('metaStore', event.target.checked)}
-                        />
-                      }
-                      label="Meta Store"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelOfferUp}
-                          onChange={(event) => setField('salesChannelOfferUp', event.target.checked)}
-                        />
-                      }
-                      label="OfferUp"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelEbay}
-                          onChange={(event) => setField('salesChannelEbay', event.target.checked)}
-                        />
-                      }
-                      label="EBay"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelNextdoor}
-                          onChange={(event) => setField('salesChannelNextdoor', event.target.checked)}
-                        />
-                      }
-                      label="Nextdoor"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.salesChannelOther}
-                          onChange={(event) => setField('salesChannelOther', event.target.checked)}
-                        />
-                      }
-                      label="Other"
-                    />
-                  </Stack>
-                </Paper>
-              </Grid>
 
-              <Grid size={12}>
-                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
-                    <Grid container spacing={3}>
-                      <Grid size={12}>
-                        <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
-                          Sale Details
-                        </Typography>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 10.2 }}>
-                        <TextField
-                          fullWidth
-                          required
-                          label="Title"
-                          value={form.saleTitle}
-                          onChange={(event) => setField('saleTitle', event.target.value)}
-                          onFocus={handleSaleTitleFocus}
-                          onBlur={handleSaleTitleBlur}
-                          inputProps={{ maxLength: 200 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 1.8 }}>
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          disabled={!form.forSale || !form.saleTitle.trim() || !form.saleDescription.trim() || isReframing}
-                          onClick={handleReframeSaleTitleAndDescription}
-                          startIcon={<IconifyIcon icon="material-symbols:auto-fix-high" fontSize={18} />}
-                          sx={{ height: 56 }}
-                        >
-                          {isReframing ? 'Reframing...' : 'Reframe'}
-                        </Button>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <TextField
-                          fullWidth
-                          required
-                          label="Sale Price"
-                          type="number"
-                          value={form.salePrice}
-                          onChange={(event) => setField('salePrice', event.target.value)}
-                          onBlur={() => {
-                            const num = parseFloat(form.salePrice);
-                            if (num > 0 && !form.regularPrice.trim()) {
-                              setField('regularPrice', String(Math.ceil(num * 1.2)));
-                            }
-                          }}
-                          inputProps={{ min: 0, step: 0.01 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <TextField
-                          fullWidth
-                          required
-                          label="Regular Price"
-                          type="number"
-                          value={form.regularPrice}
-                          onChange={(event) => setField('regularPrice', event.target.value)}
-                          inputProps={{ min: 0, step: 0.01 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <TextField
-                          select
-                          fullWidth
-                          required
-                          label="Condition"
-                          value={form.condition}
-                          onChange={(event) => setField('condition', event.target.value)}
-                        >
-                          {SALE_CONDITION_OPTIONS.map((option) => (
-                            <MenuItem key={option || 'blank'} value={option}>
-                              {option || ' '}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <Box
-                          sx={{
-                            height: 1,
-                            minHeight: 90,
-                            px: 2,
-                            py: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            gap: 0.5,
-                            bgcolor: 'background.paper',
-                            border: 1,
-                            borderColor: 'divider',
-                            borderRadius: 3,
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ pt: 2.5, borderTop: 1, borderColor: 'divider' }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 2, color: 'text.secondary', fontWeight: 600 }}>
+                        Sale Details
+                      </Typography>
+                      <Grid container spacing={2.5}>
+                        <Grid size={{ xs: 12, md: 10.2 }}>
+                          <TextField
+                            fullWidth
+                            required
+                            label="Title"
+                            value={form.saleTitle}
+                            onChange={(event) => setField('saleTitle', event.target.value)}
+                            onFocus={handleSaleTitleFocus}
+                            onBlur={handleSaleTitleBlur}
+                            inputProps={{ maxLength: 200 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 1.8 }}>
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            disabled={!form.forSale || !form.saleTitle.trim() || !form.saleDescription.trim() || isReframing}
+                            onClick={handleReframeSaleTitleAndDescription}
+                            startIcon={<IconifyIcon icon="material-symbols:auto-fix-high" fontSize={18} />}
+                            sx={{ height: 56 }}
+                          >
+                            {isReframing ? 'Reframing...' : 'Reframe'}
+                          </Button>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <TextField
+                            fullWidth
+                            required
+                            label="Sale Price"
+                            type="number"
+                            value={form.salePrice}
+                            onChange={(event) => setField('salePrice', event.target.value)}
+                            onBlur={() => {
+                              const num = parseFloat(form.salePrice);
+                              if (num > 0 && !form.regularPrice.trim()) {
+                                setField('regularPrice', String(Math.ceil(num * 1.2)));
+                              }
+                            }}
+                            inputProps={{ min: 0, step: 0.01 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <TextField
+                            fullWidth
+                            required
+                            label="Regular Price"
+                            type="number"
+                            value={form.regularPrice}
+                            onChange={(event) => setField('regularPrice', event.target.value)}
+                            inputProps={{ min: 0, step: 0.01 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <TextField
+                            select
+                            fullWidth
+                            required
+                            label="Condition"
+                            value={form.condition}
+                            onChange={(event) => setField('condition', event.target.value)}
+                          >
+                            {SALE_CONDITION_OPTIONS.map((option) => (
+                              <MenuItem key={option || 'blank'} value={option}>
+                                {option || ' '}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <Box
+                            sx={{
+                              height: 1,
+                              minHeight: 90,
+                              px: 2,
+                              py: 1,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center',
+                              gap: 0.5,
+                              bgcolor: 'background.paper',
+                              border: 1,
+                              borderColor: 'divider',
+                              borderRadius: 3,
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <FormControlLabel
+                                control={(
+                                  <Checkbox
+                                    checked={form.allowShipping}
+                                    onChange={(event) => setField('allowShipping', event.target.checked)}
+                                  />
+                                )}
+                                label="Allow Shipping"
+                              />
+                              <TextField
+                                label="Shipping $"
+                                type="number"
+                                size="small"
+                                disabled={!form.allowShipping}
+                                value={form.fixedShippingAmount}
+                                onChange={(event) => setField('fixedShippingAmount', event.target.value)}
+                                inputProps={{ min: 0, step: 0.01 }}
+                                sx={{ width: 110 }}
+                              />
+                            </Box>
                             <FormControlLabel
                               control={(
                                 <Checkbox
-                                  checked={form.allowShipping}
-                                  onChange={(event) => setField('allowShipping', event.target.checked)}
+                                  checked={form.salesTaxIncluded}
+                                  onChange={(event) => setField('salesTaxIncluded', event.target.checked)}
                                 />
                               )}
-                              label="Allow Shipping"
-                            />
-                            <TextField
-                              label="Shipping $"
-                              type="number"
-                              size="small"
-                              disabled={!form.allowShipping}
-                              value={form.fixedShippingAmount}
-                              onChange={(event) => setField('fixedShippingAmount', event.target.value)}
-                              inputProps={{ min: 0, step: 0.01 }}
-                              sx={{ width: 110 }}
+                              label="Sales Tax Included"
                             />
                           </Box>
-                          <FormControlLabel
-                            control={(
-                              <Checkbox
-                                checked={form.salesTaxIncluded}
-                                onChange={(event) => setField('salesTaxIncluded', event.target.checked)}
-                              />
-                            )}
-                            label="Sales Tax Included"
+                        </Grid>
+                        <Grid size={12}>
+                          <TextField
+                            fullWidth
+                            required
+                            multiline
+                            minRows={4}
+                            maxRows={8}
+                            label="Description"
+                            value={form.saleDescription}
+                            onChange={(event) => setField('saleDescription', event.target.value)}
+                            inputProps={{ maxLength: 12000 }}
+                            sx={notesFieldSx}
                           />
-                        </Box>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 9.6 }}>
-                        <TextField
-                          fullWidth
-                          required
-                          multiline
-                          minRows={4}
-                          maxRows={8}
-                          label="Description"
-                          value={form.saleDescription}
-                          onChange={(event) => setField('saleDescription', event.target.value)}
-                          inputProps={{ maxLength: 12000 }}
-                          sx={notesFieldSx}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 2.4 }}>
-                        <Stack sx={{ gap: 2, height: 1 }}>
-                          <Button
+                        </Grid>
+                        <Grid size={12} sx={{ mt: -1 }}>
+                          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={handleGenerateSaleDescription}
+                              startIcon={<IconifyIcon icon="material-symbols:sell-outline" fontSize={18} />}
+                            >
+                              Sale
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={handleGeneratePackageDescription}
+                              startIcon={<IconifyIcon icon="material-symbols:attach-money-rounded" fontSize={18} />}
+                            >
+                              Package
+                            </Button>
+                          </Stack>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
                             fullWidth
-                            variant="contained"
-                            onClick={handleGenerateSaleDescription}
-                            startIcon={<IconifyIcon icon="material-symbols:sell-outline" fontSize={18} />}
-                            sx={{ flex: 1, minHeight: 56 }}
-                          >
-                            Sale
-                          </Button>
-                          <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={handleGeneratePackageDescription}
-                            startIcon={<IconifyIcon icon="material-symbols:attach-money-rounded" fontSize={18} />}
-                            sx={{ flex: 1, minHeight: 56 }}
-                          >
-                            Package
-                          </Button>
-                        </Stack>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          required
-                          label="Sale URL Slug"
-                          inputRef={saleUrlInputRef}
-                          value={form.saleUrl}
-                          onChange={(event) => {
-                            if (!saleUrlReadOnly) {
-                              setField('saleUrl', event.target.value);
+                            required
+                            label="Sale URL Slug"
+                            inputRef={saleUrlInputRef}
+                            value={form.saleUrl}
+                            onChange={(event) => {
+                              if (!saleUrlReadOnly) {
+                                setField('saleUrl', event.target.value);
+                              }
+                            }}
+                            onBlur={handleSaleUrlBlur}
+                            InputProps={{
+                              readOnly: saleUrlReadOnly,
+                              endAdornment: saleUrlReadOnly ? (
+                                <InputAdornment position="end">
+                                  <Tooltip title="Edit sale URL slug">
+                                    <IconButton
+                                      aria-label="Edit sale URL slug"
+                                      edge="end"
+                                      size="small"
+                                      onClick={unlockSaleUrl}
+                                    >
+                                      <IconifyIcon icon="material-symbols:edit-outline-rounded" fontSize={20} />
+                                    </IconButton>
+                                  </Tooltip>
+                                </InputAdornment>
+                              ) : null,
+                            }}
+                            inputProps={{ maxLength: 150 }}
+                            helperText={
+                              saleUrlReadOnly
+                                ? 'URL segment is locked once populated.'
+                                : 'URL segment used in the shop product URL, e.g. ovation-guitar-crate-amp-package'
                             }
-                          }}
-                          onBlur={handleSaleUrlBlur}
-                          InputProps={{
-                            readOnly: saleUrlReadOnly,
-                            endAdornment: saleUrlReadOnly ? (
-                              <InputAdornment position="end">
-                                <Tooltip title="Edit sale URL slug">
-                                  <IconButton
-                                    aria-label="Edit sale URL slug"
-                                    edge="end"
-                                    size="small"
-                                    onClick={unlockSaleUrl}
-                                  >
-                                    <IconifyIcon icon="material-symbols:edit-outline-rounded" fontSize={20} />
-                                  </IconButton>
-                                </Tooltip>
-                              </InputAdornment>
-                            ) : null,
-                          }}
-                          inputProps={{ maxLength: 150 }}
-                          helperText={
-                            saleUrlReadOnly
-                              ? 'URL segment is locked once populated.'
-                              : 'URL segment used in the shop product URL, e.g. ovation-guitar-crate-amp-package'
-                          }
-                        />
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <TextField
+                            fullWidth
+                            required
+                            label="Sale ZIP"
+                            value={form.saleZip}
+                            onChange={(event) => setField('saleZip', event.target.value)}
+                            inputProps={{ maxLength: 10 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.clearance}
+                                onChange={(event) => setField('clearance', event.target.checked)}
+                              />
+                            }
+                            label="Clearance"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="Bullet 1 Text"
+                            value={form.bullet1Text}
+                            onChange={(event) => setField('bullet1Text', event.target.value)}
+                            inputProps={{ maxLength: 60 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet1Danger}
+                                onChange={(event) => setField('bullet1Danger', event.target.checked)}
+                              />
+                            }
+                            label="Show in Red?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet1Highlight}
+                                onChange={(event) => setField('bullet1Highlight', event.target.checked)}
+                              />
+                            }
+                            label="Highlight Bullet?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="Bullet 2 Text"
+                            value={form.bullet2Text}
+                            onChange={(event) => setField('bullet2Text', event.target.value)}
+                            inputProps={{ maxLength: 60 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet2Danger}
+                                onChange={(event) => setField('bullet2Danger', event.target.checked)}
+                              />
+                            }
+                            label="Show in Red?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet2Highlight}
+                                onChange={(event) => setField('bullet2Highlight', event.target.checked)}
+                              />
+                            }
+                            label="Highlight Bullet?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="Bullet 3 Text"
+                            value={form.bullet3Text}
+                            onChange={(event) => setField('bullet3Text', event.target.value)}
+                            inputProps={{ maxLength: 60 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet3Danger}
+                                onChange={(event) => setField('bullet3Danger', event.target.checked)}
+                              />
+                            }
+                            label="Show in Red?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet3Highlight}
+                                onChange={(event) => setField('bullet3Highlight', event.target.checked)}
+                              />
+                            }
+                            label="Highlight Bullet?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="Bullet 4 Text"
+                            value={form.bullet4Text}
+                            onChange={(event) => setField('bullet4Text', event.target.value)}
+                            inputProps={{ maxLength: 60 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet4Danger}
+                                onChange={(event) => setField('bullet4Danger', event.target.checked)}
+                              />
+                            }
+                            label="Show in Red?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet4Highlight}
+                                onChange={(event) => setField('bullet4Highlight', event.target.checked)}
+                              />
+                            }
+                            label="Highlight Bullet?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="Bullet 5 Text"
+                            value={form.bullet5Text}
+                            onChange={(event) => setField('bullet5Text', event.target.value)}
+                            inputProps={{ maxLength: 60 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet5Danger}
+                                onChange={(event) => setField('bullet5Danger', event.target.checked)}
+                              />
+                            }
+                            label="Show in Red?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet5Highlight}
+                                onChange={(event) => setField('bullet5Highlight', event.target.checked)}
+                              />
+                            }
+                            label="Highlight Bullet?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="Bullet 6 Text"
+                            value={form.bullet6Text}
+                            onChange={(event) => setField('bullet6Text', event.target.value)}
+                            inputProps={{ maxLength: 60 }}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet6Danger}
+                                onChange={(event) => setField('bullet6Danger', event.target.checked)}
+                              />
+                            }
+                            label="Show in Red?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={form.bullet6Highlight}
+                                onChange={(event) => setField('bullet6Highlight', event.target.checked)}
+                              />
+                            }
+                            label="Highlight Bullet?"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 3 }}>
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            onClick={handleGenerateLargeTag}
+                            disabled={isGeneratingTag}
+                            startIcon={
+                              isGeneratingTag ? (
+                                <CircularProgress size={16} color="inherit" />
+                              ) : (
+                                <IconifyIcon icon="material-symbols:inventory-2-outline-rounded" fontSize={18} />
+                              )
+                            }
+                          >
+                            Gen. Large Tag
+                          </Button>
+                        </Grid>
                       </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <TextField
-                          fullWidth
-                          required
-                          label="Sale ZIP"
-                          value={form.saleZip}
-                          onChange={(event) => setField('saleZip', event.target.value)}
-                          inputProps={{ maxLength: 10 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.clearance}
-                              onChange={(event) => setField('clearance', event.target.checked)}
-                            />
-                          }
-                          label="Clearance"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Bullet 1 Text"
-                          value={form.bullet1Text}
-                          onChange={(event) => setField('bullet1Text', event.target.value)}
-                          inputProps={{ maxLength: 60 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet1Danger}
-                              onChange={(event) => setField('bullet1Danger', event.target.checked)}
-                            />
-                          }
-                          label="Show in Red?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet1Highlight}
-                              onChange={(event) => setField('bullet1Highlight', event.target.checked)}
-                            />
-                          }
-                          label="Highlight Bullet?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Bullet 2 Text"
-                          value={form.bullet2Text}
-                          onChange={(event) => setField('bullet2Text', event.target.value)}
-                          inputProps={{ maxLength: 60 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet2Danger}
-                              onChange={(event) => setField('bullet2Danger', event.target.checked)}
-                            />
-                          }
-                          label="Show in Red?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet2Highlight}
-                              onChange={(event) => setField('bullet2Highlight', event.target.checked)}
-                            />
-                          }
-                          label="Highlight Bullet?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Bullet 3 Text"
-                          value={form.bullet3Text}
-                          onChange={(event) => setField('bullet3Text', event.target.value)}
-                          inputProps={{ maxLength: 60 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet3Danger}
-                              onChange={(event) => setField('bullet3Danger', event.target.checked)}
-                            />
-                          }
-                          label="Show in Red?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet3Highlight}
-                              onChange={(event) => setField('bullet3Highlight', event.target.checked)}
-                            />
-                          }
-                          label="Highlight Bullet?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Bullet 4 Text"
-                          value={form.bullet4Text}
-                          onChange={(event) => setField('bullet4Text', event.target.value)}
-                          inputProps={{ maxLength: 60 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet4Danger}
-                              onChange={(event) => setField('bullet4Danger', event.target.checked)}
-                            />
-                          }
-                          label="Show in Red?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet4Highlight}
-                              onChange={(event) => setField('bullet4Highlight', event.target.checked)}
-                            />
-                          }
-                          label="Highlight Bullet?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Bullet 5 Text"
-                          value={form.bullet5Text}
-                          onChange={(event) => setField('bullet5Text', event.target.value)}
-                          inputProps={{ maxLength: 60 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet5Danger}
-                              onChange={(event) => setField('bullet5Danger', event.target.checked)}
-                            />
-                          }
-                          label="Show in Red?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet5Highlight}
-                              onChange={(event) => setField('bullet5Highlight', event.target.checked)}
-                            />
-                          }
-                          label="Highlight Bullet?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Bullet 6 Text"
-                          value={form.bullet6Text}
-                          onChange={(event) => setField('bullet6Text', event.target.value)}
-                          inputProps={{ maxLength: 60 }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet6Danger}
-                              onChange={(event) => setField('bullet6Danger', event.target.checked)}
-                            />
-                          }
-                          label="Show in Red?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={form.bullet6Highlight}
-                              onChange={(event) => setField('bullet6Highlight', event.target.checked)}
-                            />
-                          }
-                          label="Highlight Bullet?"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          onClick={handleGenerateLargeTag}
-                          disabled={isGeneratingTag}
-                          startIcon={
-                            isGeneratingTag ? (
-                              <CircularProgress size={16} color="inherit" />
-                            ) : (
-                              <IconifyIcon icon="material-symbols:inventory-2-outline-rounded" fontSize={18} />
-                            )
-                          }
-                        >
-                          Gen. Large Tag
-                        </Button>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <Button fullWidth variant="contained" disabled>
-                          Future Tag
-                        </Button>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <Button fullWidth variant="contained" disabled>
-                          Future Tag
-                        </Button>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 3 }}>
-                        <Button fullWidth variant="contained" disabled>
-                          Future Tag
-                        </Button>
-                      </Grid>
-                    </Grid>
-                </Paper>
+                    </Box>
+                  </Stack>
+                </CollapsibleSection>
               </Grid>
-
-              <>
-                  <Grid size={12}>
-                    <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
-                      Guitar Specs
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth
-                      label="Weight (lbs)"
-                      value={form.weightLbs}
-                      onChange={(event) => setField('weightLbs', event.target.value)}
-                      inputProps={{ maxLength: 10 }}
-                      placeholder='e.g. 9.5'
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth
-                      label="Neck Profile"
-                      value={form.neckProfile}
-                      onChange={(event) => setField('neckProfile', event.target.value)}
-                      inputProps={{ maxLength: 100 }}
-                      placeholder="e.g. C Shape (modern, rounded)"
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth
-                      label="Neck Thickness"
-                      value={form.neckThickness}
-                      onChange={(event) => setField('neckThickness', event.target.value)}
-                      inputProps={{ maxLength: 100 }}
-                      placeholder='e.g. 0.86"–0.95"+ (chunky)'
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth
-                      label="Nut Width"
-                      value={form.nutWidth}
-                      onChange={(event) => setField('nutWidth', event.target.value)}
-                      inputProps={{ maxLength: 100 }}
-                      placeholder='e.g. 1.69" (standard)'
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth
-                      label="Neck Width (12th Fret)"
-                      value={form.width12Fret}
-                      onChange={(event) => setField('width12Fret', event.target.value)}
-                      inputProps={{ maxLength: 100 }}
-                      placeholder='e.g. 2.06"'
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth
-                      label="Fretboard Radius"
-                      value={form.fretboardRadius}
-                      onChange={(event) => setField('fretboardRadius', event.target.value)}
-                      inputProps={{ maxLength: 100 }}
-                      placeholder='e.g. 9.5" → modern Fender'
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      fullWidth
-                      label="12th Fret Action"
-                      value={form.twelveFretAction}
-                      onChange={(event) => setField('twelveFretAction', event.target.value)}
-                      inputProps={{ maxLength: 100 }}
-                      placeholder='e.g. ~4/64"–5/64"'
-                    />
-                  </Grid>
-                </>
 
               <Grid size={12}>
-                <Typography variant="overline" sx={{ color: 'text.secondary', letterSpacing: 0.6 }}>
-                  This Unit Only
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={form.isSold}
-                        onChange={(event) => setField('isSold', event.target.checked)}
-                      />
-                    }
-                    label="Is Sold"
-                  />
-                  {editId && wasSoldOnLoad && form.isSold ? (
-                    itemOrder ? (
-                      <Button
-                        size="small"
-                        href={paths.orderManagerItemWithId(itemOrder.id)}
-                        startIcon={<IconifyIcon icon="material-symbols:receipt-long-outline-rounded" fontSize={18} />}
-                      >
-                        Order {formatOrderNumber(itemOrder.orderNumber)}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => setSoldOrderDialogItem({
-                          id: editId,
-                          ccgNumber: form.ccgNumber,
-                          title: form.saleTitle.trim() || form.title.trim(),
-                          soldAmount: form.soldAmount.trim(),
-                          soldChannel: form.soldChannel,
-                        })}
-                      >
-                        Create / attach order
-                      </Button>
-                    )
-                  ) : null}
-                </Paper>
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Sold Amount"
-                  type="number"
-                  value={form.soldAmount}
-                  onChange={(event) => setField('soldAmount', event.target.value)}
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-              </Grid>
-              {form.isSold ? (
-                <Grid size={{ xs: 12, md: 4 }}>
-                  <TextField
-                    fullWidth
-                    label="Qty Sold"
-                    type="number"
-                    value={form.qtySold}
-                    disabled={form.quantity <= 1}
-                    onChange={(event) => {
-                      const parsed = Number.parseInt(event.target.value, 10);
-                      const nextValue = Number.isFinite(parsed)
-                        ? Math.min(Math.max(1, parsed), Math.max(1, form.quantity))
-                        : 1;
-                      setField('qtySold', nextValue);
-                    }}
-                    inputProps={{ min: 1, max: Math.max(1, form.quantity), step: 1 }}
-                  />
-                </Grid>
-              ) : null}
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Sold Channel"
-                  value={form.soldChannel}
-                  onChange={(event) => setField('soldChannel', event.target.value)}
+                <CollapsibleSection
+                  title="Guitar Specs"
+                  summary={<SectionSummaryText>{specsFilledCount} of {SPEC_FIELD_KEYS.length} filled</SectionSummaryText>}
+                  open={openSections.specs}
+                  onToggle={() => toggleSection('specs')}
                 >
-                  <MenuItem value=""><em>None</em></MenuItem>
-                  <MenuItem value="FBM">FBM</MenuItem>
-                  <MenuItem value="CL">CL</MenuItem>
-                  <MenuItem value="CCG External Web">CCG External Web</MenuItem>
-                  <MenuItem value="CCG In-Store">CCG In-Store</MenuItem>
-                  <MenuItem value="Reverb">Reverb</MenuItem>
-                  <MenuItem value="OfferUp">OfferUp</MenuItem>
-                  <MenuItem value="EBay">EBay</MenuItem>
-                  <MenuItem value="Nextdoor">Nextdoor</MenuItem>
-                  <MenuItem value="Sweetwater Gear Exchange">Sweetwater Gear Exchange</MenuItem>
-                  <MenuItem value="Other">Other</MenuItem>
-                </TextField>
+                  <Grid container spacing={2.5} sx={{ pt: 1 }}>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Weight (lbs)"
+                        value={form.weightLbs}
+                        onChange={(event) => setField('weightLbs', event.target.value)}
+                        inputProps={{ maxLength: 10 }}
+                        placeholder='e.g. 9.5'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Neck Profile"
+                        value={form.neckProfile}
+                        onChange={(event) => setField('neckProfile', event.target.value)}
+                        inputProps={{ maxLength: 100 }}
+                        placeholder="e.g. C Shape (modern, rounded)"
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Neck Thickness"
+                        value={form.neckThickness}
+                        onChange={(event) => setField('neckThickness', event.target.value)}
+                        inputProps={{ maxLength: 100 }}
+                        placeholder='e.g. 0.86"–0.95"+ (chunky)'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Nut Width"
+                        value={form.nutWidth}
+                        onChange={(event) => setField('nutWidth', event.target.value)}
+                        inputProps={{ maxLength: 100 }}
+                        placeholder='e.g. 1.69" (standard)'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Neck Width (12th Fret)"
+                        value={form.width12Fret}
+                        onChange={(event) => setField('width12Fret', event.target.value)}
+                        inputProps={{ maxLength: 100 }}
+                        placeholder='e.g. 2.06"'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Fretboard Radius"
+                        value={form.fretboardRadius}
+                        onChange={(event) => setField('fretboardRadius', event.target.value)}
+                        inputProps={{ maxLength: 100 }}
+                        placeholder='e.g. 9.5" → modern Fender'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="12th Fret Action"
+                        value={form.twelveFretAction}
+                        onChange={(event) => setField('twelveFretAction', event.target.value)}
+                        inputProps={{ maxLength: 100 }}
+                        placeholder='e.g. ~4/64"–5/64"'
+                      />
+                    </Grid>
+                  </Grid>
+                </CollapsibleSection>
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, bgcolor: 'background.default' }}>
-                  <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={form.soldShipCostAccounted}
-                          onChange={(event) => setField('soldShipCostAccounted', event.target.checked)}
+
+              {/* Sold: opens when Sold is on (status pills above). */}
+              <Grid size={12}>
+                <CollapsibleSection
+                  title="Sold"
+                  summary={<SectionSummaryText>{soldSummary}</SectionSummaryText>}
+                  open={openSections.sold}
+                  onToggle={() => toggleSection('sold')}
+                >
+                  <Grid container spacing={2.5} sx={{ pt: 1 }}>
+                    {editId && wasSoldOnLoad && form.isSold ? (
+                      <Grid size={12}>
+                        {itemOrder ? (
+                        <Button
+                          size="small"
+                          href={paths.orderManagerItemWithId(itemOrder.id)}
+                          startIcon={<IconifyIcon icon="material-symbols:receipt-long-outline-rounded" fontSize={18} />}
+                        >
+                          Order {formatOrderNumber(itemOrder.orderNumber)}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => setSoldOrderDialogItem({
+                            id: editId,
+                            ccgNumber: form.ccgNumber,
+                            title: form.saleTitle.trim() || form.title.trim(),
+                            soldAmount: form.soldAmount.trim(),
+                            soldChannel: form.soldChannel,
+                          })}
+                        >
+                          Create / attach order
+                        </Button>
+                      )}
+                      </Grid>
+                    ) : null}
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        fullWidth
+                        label="Sold Amount"
+                        type="number"
+                        value={form.soldAmount}
+                        onChange={(event) => setField('soldAmount', event.target.value)}
+                        inputProps={{ min: 0, step: 0.01 }}
+                      />
+                    </Grid>
+                    {form.isSold ? (
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField
+                          fullWidth
+                          label="Qty Sold"
+                          type="number"
+                          value={form.qtySold}
+                          disabled={form.quantity <= 1}
+                          onChange={(event) => {
+                            const parsed = Number.parseInt(event.target.value, 10);
+                            const nextValue = Number.isFinite(parsed)
+                              ? Math.min(Math.max(1, parsed), Math.max(1, form.quantity))
+                              : 1;
+                            setField('qtySold', nextValue);
+                          }}
+                          inputProps={{ min: 1, max: Math.max(1, form.quantity), step: 1 }}
                         />
-                      }
-                      label="Ship Cost Accounted"
-                    />
-                    {!form.soldShipCostAccounted && form.soldChannel === 'Reverb' ? (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        loading={isCheckingReverbShipping}
-                        onClick={() => void handleCheckReverbShipping()}
-                      >
-                        Check Reverb Shipping
-                      </Button>
+                      </Grid>
                     ) : null}
-                  </Stack>
-                </Paper>
-              </Grid>
-
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  multiline
-                  minRows={3}
-                  label="Sell Notes"
-                  value={form.sellNotes}
-                  onChange={(event) => setField('sellNotes', event.target.value)}
-                  inputProps={{ maxLength: 4000 }}
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <Box sx={{ pt: 1 }}>
-                  <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      disabled={isSubmitting || isUploading || isImporting}
-                      onClick={handleSubmitWithSoldCheck}
-                      startIcon={
-                        isSubmitting ? (
-                          <CircularProgress color="inherit" size={16} />
-                        ) : (
-                          <IconifyIcon icon="material-symbols:save-outline-rounded" />
-                        )
-                      }
-                    >
-                      {isSubmitting ? 'Saving...' : submitLabel}
-                    </Button>
-                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on FBM.' : (form.fbListingId.trim() ? 'Already listed on FBM.' : '')}>
-                      <span>
-                        <Button
-                          variant="contained"
-                          disabled={mode !== 'edit' || Boolean(form.fbListingId.trim())}
-                          onClick={() => setFbmCommandOpen(true)}
-                          startIcon={<Box component="img" src="/images/fb.png" alt="" sx={{ width: 16, height: 16 }} />}
-                          sx={mode === 'edit' && !form.fbListingId.trim() ? { bgcolor: '#1877F2', color: '#fff', '&:hover': { bgcolor: '#166FE5' } } : undefined}
-                        >
-                          Add to FBM
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Reverb.' : ''}>
-                      <span>
-                        <Button
-                          variant="contained"
-                          disabled={mode !== 'edit' || isReverbActionPending}
-                          onClick={handleReverbToggle}
-                          startIcon={
-                            isReverbActionPending ? (
-                              <CircularProgress color="inherit" size={16} />
-                            ) : (
-                              <Box component="img" src="/images/reverb-icon.svg" alt="" sx={{ width: 16, height: 16 }} />
-                            )
-                          }
-                          sx={mode === 'edit' ? {
-                            bgcolor: form.reverbListingId ? 'error.main' : 'warning.main',
-                            color: '#fff',
-                            '&:hover': { bgcolor: form.reverbListingId ? 'error.dark' : 'warning.dark' },
-                          } : undefined}
-                        >
-                          {isReverbActionPending
-                            ? 'Working...'
-                            : (form.reverbListingId ? 'Delete From Reverb' : 'Add to Reverb')}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Gear Exchange.' : (gxListing?.lastError ? `Last GX error: ${gxListing.lastError}` : '')}>
-                      <span>
-                        <Button
-                          variant="contained"
-                          disabled={mode !== 'edit' || isGxActionPending}
-                          onClick={() => void handleGxToggle()}
-                          startIcon={
-                            isGxActionPending ? (
-                              <CircularProgress color="inherit" size={16} />
-                            ) : (
-                              <Box component="img" src="/images/gx-icon-white.svg" alt="" sx={{ width: 16, height: 16 }} />
-                            )
-                          }
-                          sx={mode === 'edit' ? {
-                            bgcolor: gxListing ? 'error.main' : '#1F2A44',
-                            color: '#fff',
-                            '&:hover': { bgcolor: gxListing ? 'error.dark' : '#141C2F' },
-                          } : undefined}
-                        >
-                          {isGxActionPending ? 'Working...' : (gxListing ? 'Delete From GX' : 'Add to GX')}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    {gxListing?.gxStatus === 'draft' ? (
-                      <Button
-                        variant="outlined"
-                        disabled={isGxActionPending}
-                        onClick={() => void handleGxPublish()}
-                        startIcon={<Box component="img" src="/images/gx-icon.svg" alt="" sx={{ width: 16, height: 16 }} />}
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        select
+                        fullWidth
+                        label="Sold Channel"
+                        value={form.soldChannel}
+                        onChange={(event) => setField('soldChannel', event.target.value)}
                       >
-                        Publish on GX
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      disabled={isFindingNextEval}
-                      onClick={handleEvalNextProduct}
-                      startIcon={
-                        isFindingNextEval ? (
-                          <CircularProgress color="inherit" size={16} />
-                        ) : (
-                          <IconifyIcon icon="material-symbols:shuffle-rounded" />
-                        )
-                      }
-                    >
-                      {isFindingNextEval ? 'Finding...' : 'Eval Next Product'}
-                    </Button>
-                  </Stack>
-                </Box>
+                        <MenuItem value=""><em>None</em></MenuItem>
+                        <MenuItem value="FBM">FBM</MenuItem>
+                        <MenuItem value="CL">CL</MenuItem>
+                        <MenuItem value="CCG External Web">CCG External Web</MenuItem>
+                        <MenuItem value="CCG In-Store">CCG In-Store</MenuItem>
+                        <MenuItem value="Reverb">Reverb</MenuItem>
+                        <MenuItem value="OfferUp">OfferUp</MenuItem>
+                        <MenuItem value="EBay">EBay</MenuItem>
+                        <MenuItem value="Nextdoor">Nextdoor</MenuItem>
+                        <MenuItem value="Sweetwater Gear Exchange">Sweetwater Gear Exchange</MenuItem>
+                        <MenuItem value="Other">Other</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={form.soldShipCostAccounted}
+                              onChange={(event) => setField('soldShipCostAccounted', event.target.checked)}
+                            />
+                          }
+                          label="Ship Cost Accounted"
+                        />
+                        {!form.soldShipCostAccounted && form.soldChannel === 'Reverb' ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            loading={isCheckingReverbShipping}
+                            onClick={() => void handleCheckReverbShipping()}
+                          >
+                            Check Reverb Shipping
+                          </Button>
+                        ) : null}
+                      </Stack>
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        label="Sell Notes"
+                        value={form.sellNotes}
+                        onChange={(event) => setField('sellNotes', event.target.value)}
+                        inputProps={{ maxLength: 4000 }}
+                      />
+                    </Grid>
+                  </Grid>
+                </CollapsibleSection>
               </Grid>
             </Grid>
+            {/* Save bar: pinned to the bottom of the screen. */}
+            <Box
+              sx={{
+                position: 'sticky',
+                bottom: 0,
+                zIndex: 5,
+                mx: { xs: -2, md: -5 },
+                px: { xs: 2, md: 5 },
+                py: 1.5,
+                bgcolor: 'background.paper',
+                borderTop: 1,
+                borderColor: 'divider',
+                boxShadow: '0 -6px 16px rgba(0, 0, 0, 0.25)',
+              }}
+            >
+              <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  disabled={isSubmitting || isUploading || isImporting}
+                  onClick={handleSubmitWithSoldCheck}
+                  startIcon={
+                    isSubmitting ? (
+                      <CircularProgress color="inherit" size={16} />
+                    ) : (
+                      <IconifyIcon icon="material-symbols:save-outline-rounded" />
+                    )
+                  }
+                >
+                  {isSubmitting ? 'Saving...' : submitLabel}
+                </Button>
+                {isDirty ? (
+                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Unsaved changes
+                    </Typography>
+                  </Stack>
+                ) : null}
+                <Box sx={{ flex: 1 }} />
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  disabled={isFindingNextEval}
+                  onClick={handleEvalNextProduct}
+                  startIcon={
+                    isFindingNextEval ? (
+                      <CircularProgress color="inherit" size={16} />
+                    ) : (
+                      <IconifyIcon icon="material-symbols:shuffle-rounded" />
+                    )
+                  }
+                >
+                  {isFindingNextEval ? 'Finding...' : 'Eval Next Product'}
+                </Button>
+              </Stack>
+            </Box>
           </Stack>
         )}
       </Box>
