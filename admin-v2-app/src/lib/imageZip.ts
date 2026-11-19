@@ -3,7 +3,7 @@ const CRC32_TABLE = (() => {
   for (let i = 0; i < 256; i++) {
     let c = i;
     for (let j = 0; j < 8; j++) {
-      c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     }
     table[i] = c;
   }
@@ -11,11 +11,11 @@ const CRC32_TABLE = (() => {
 })();
 
 function crc32(data: Uint8Array): number {
-  let crc = 0xFFFFFFFF;
+  let crc = 0xffffffff;
   for (let i = 0; i < data.length; i++) {
-    crc = CRC32_TABLE[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+    crc = CRC32_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
   }
-  return (crc ^ 0xFFFFFFFF) >>> 0;
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 // Build an uncompressed (store) ZIP archive from in-memory files.
@@ -109,11 +109,55 @@ export async function downloadImagesAsZip(imageUrls: string[], filename: string)
       const ct = res.headers.get('content-type') || '';
       const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
       files.push({ name: `image-${i + 1}.${ext}`, data: new Uint8Array(buf) });
-    } catch { /* skip failed images */ }
+    } catch {
+      /* skip failed images */
+    }
   }
   if (files.length === 0) return 0;
 
   const blob = new Blob([buildZip(files).buffer as ArrayBuffer], { type: 'application/zip' });
+  await saveZipBlob(blob, filename);
+  return files.length;
+}
+
+// Phones/tablets: an <a download> click opens the ZIP in a blank viewer page (and in the
+// home-screen app there is no way back), so hand the file to the native share sheet
+// instead, which has "Save to Files" and leaves the page where it was.
+function prefersShareSheet(file: File): boolean {
+  if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function')
+    return false;
+  // Desktop Safari/Chrome also support file sharing; keep the plain download there.
+  if (!window.matchMedia('(pointer: coarse)').matches) return false;
+  try {
+    return navigator.canShare({ files: [file] });
+  } catch {
+    return false;
+  }
+}
+
+async function saveZipBlob(blob: Blob, filename: string): Promise<void> {
+  const file = new File([blob], filename, { type: 'application/zip' });
+  if (!prefersShareSheet(file)) {
+    triggerAnchorDownload(blob, filename);
+    return;
+  }
+
+  try {
+    await navigator.share({ files: [file] });
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : '';
+    if (name === 'AbortError') return; // user closed the share sheet
+    if (name === 'NotAllowedError') {
+      // Fetching the photos outlasted the tap that started this, so the browser no
+      // longer allows opening the share sheet. Ask for one more tap.
+      await showSaveZipPrompt(file);
+      return;
+    }
+    triggerAnchorDownload(blob, filename);
+  }
+}
+
+function triggerAnchorDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -121,6 +165,74 @@ export async function downloadImagesAsZip(imageUrls: string[], filename: string)
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
-  return files.length;
+  // Revoking immediately can leave the download empty on some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function showSaveZipPrompt(file: File): Promise<void> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'z-index:2147483647',
+      'display:flex',
+      'align-items:flex-end',
+      'justify-content:center',
+      'padding:16px',
+      'padding-bottom:calc(24px + env(safe-area-inset-bottom))',
+      'background:rgba(0,0,0,0.35)',
+    ].join(';');
+
+    const panel = document.createElement('div');
+    panel.style.cssText = [
+      'display:flex',
+      'gap:8px',
+      'width:100%',
+      'max-width:420px',
+      'padding:12px',
+      'border-radius:14px',
+      'background:#fff',
+      'box-shadow:0 8px 32px rgba(0,0,0,0.25)',
+      'font:500 16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+    ].join(';');
+
+    const makeButton = (label: string, primary: boolean) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.style.cssText = [
+        `flex:${primary ? 2 : 1}`,
+        'padding:14px 12px',
+        'border:0',
+        'border-radius:10px',
+        'font:inherit',
+        primary ? 'background:#1976d2;color:#fff' : 'background:#eee;color:#222',
+      ].join(';');
+      return button;
+    };
+
+    const saveButton = makeButton('Save ZIP', true);
+    const cancelButton = makeButton('Cancel', false);
+    const close = () => {
+      overlay.remove();
+      resolve();
+    };
+
+    saveButton.addEventListener('click', () => {
+      // Called synchronously inside the tap, so the share sheet is allowed.
+      navigator
+        .share({ files: [file] })
+        .catch(() => undefined)
+        .finally(close);
+    });
+    cancelButton.addEventListener('click', close);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close();
+    });
+
+    panel.append(cancelButton, saveButton);
+    overlay.append(panel);
+    document.body.append(overlay);
+  });
 }

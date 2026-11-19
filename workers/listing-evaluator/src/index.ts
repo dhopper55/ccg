@@ -272,6 +272,7 @@ import {
 
 // Admin Search
 import { handleAdminV2Search } from './admin/search.js';
+import { handleInventoryImageOrphans } from './admin/r2-orphans.js';
 import { handleAdminV2GxProbe, handleAdminV2GxRaw } from './gx/probe.js';
 import { handleInventoryReverbPreview } from './inventory/reverb-categories.js';
 import { handleAdminV2ChannelCategoryAudit } from './inventory/channel-category-audit.js';
@@ -1322,6 +1323,11 @@ export default {
 
     if (path.endsWith('/clear-tag-reprint') && path.startsWith('/api/admin-v2/inventory/') && request.method === 'POST') {
       const response = await handleAdminV2InventoryClearTagReprint(path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path === '/api/admin-v2/maintenance/inventory-image-orphans' && request.method === 'POST') {
+      const response = await handleInventoryImageOrphans(request, env);
       return withCors(response, request, env);
     }
 
