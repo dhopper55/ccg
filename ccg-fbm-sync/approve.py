@@ -43,10 +43,6 @@ def _ask(prompt: str, options: list[str]) -> str:
         console.print(f"Enter a number from 1 to {len(options)}.")
 
 
-def _absolute_image_urls(item: dict, base_url: str) -> list[str]:
-    urls = item.get("imageUrls") or []
-    return [u if u.startswith("http") else f"{base_url}{u}" for u in urls]
-
 
 def run_sync() -> None:
     client = CCGClient()
@@ -92,7 +88,7 @@ def run_sync() -> None:
                 price=item.get("salePrice") or 0,
                 condition=item.get("condition") or "",
                 description=item.get("saleDescription") or "",
-                image_urls=_absolute_image_urls(item, client.base_url),
+                image_urls=client.get_public_image_urls(item["id"]),
                 footer=footer,
             )
             if new_listing_id:

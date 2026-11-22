@@ -165,6 +165,20 @@ class CCGClient:
         data = resp.json()
         return data.get("record", data)
 
+    def get_public_image_urls(self, item_id) -> list[str]:
+        """Absolute URLs of the item's non-private images, in display order. List rows from
+        get_all_inventory() carry only a flat `imageUrls` (private ones included, no flags), so
+        this loads the full record, whose `images` entries carry `isPrivate`. Private images
+        (e.g. serial/receipt shots) must never go to Facebook."""
+        record = self.get_item(item_id)
+        images = record.get("images") or []
+        if images:
+            urls = [img.get("url") for img in images if img.get("url") and not img.get("isPrivate")]
+        else:
+            # Legacy item with no per-image rows: no privacy info exists, so all are public.
+            urls = record.get("imageUrls") or []
+        return [u if u.startswith("http") else f"{self.base_url}{u}" for u in urls]
+
     def update_item(self, item_id: int, record: dict) -> dict:
         """POST /api/inventory/:id/update is a full-record replace, not a patch — it reads
         ~50 body fields with hard defaults and 400s if title/categoryId/barcode/purchasedDate/
