@@ -225,7 +225,7 @@ export default function CcgAgent() {
   const activeInstance = overview?.instances.find((i) => i.active);
 
   return (
-    <Stack spacing={3} sx={{ width: 1, pb: 4 }}>
+    <Stack direction="column" spacing={3} sx={{ width: 1, pb: 4 }}>
       {/* ---------------- Instances ---------------- */}
       <Paper sx={{ p: { xs: 3, md: 4 }, width: 1, display: 'block' }}>
         <Stack
@@ -410,38 +410,36 @@ export default function CcgAgent() {
           </Table>
         </TableContainer>
 
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={2}
-          alignItems={{ sm: 'center' }}
-          sx={{ mt: 3 }}
-        >
-          <TextField
-            size="small"
-            label="Agent version (git branch, tag or full commit)"
-            value={desiredRef}
-            onChange={(event) => {
-              setDesiredRef(event.target.value);
-              setRefDirty(true);
-            }}
-            sx={{ minWidth: 320 }}
-          />
-          <Button
-            variant="outlined"
-            disabled={busy || !refDirty || !desiredRef.trim()}
-            onClick={() =>
-              void run(async () => {
-                await post('/api/admin-v2/agent/settings', { desiredRef: desiredRef.trim() });
-                setRefDirty(false);
-              }, 'Agent version saved. Auto-update instances switch within ~5 minutes.')
-            }
-          >
-            Save version
-          </Button>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+        <Box sx={{ mt: 3 }}>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ maxWidth: 560 }}>
+            <TextField
+              size="small"
+              label="Agent version (git branch, tag or full commit)"
+              value={desiredRef}
+              onChange={(event) => {
+                setDesiredRef(event.target.value);
+                setRefDirty(true);
+              }}
+              sx={{ flex: 1 }}
+            />
+            <Button
+              variant="outlined"
+              disabled={busy || !refDirty || !desiredRef.trim()}
+              sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+              onClick={() =>
+                void run(async () => {
+                  await post('/api/admin-v2/agent/settings', { desiredRef: desiredRef.trim() });
+                  setRefDirty(false);
+                }, 'Agent version saved. Auto-update instances switch within ~5 minutes.')
+              }
+            >
+              Save version
+            </Button>
+          </Stack>
+          <Typography variant="caption" component="div" sx={{ color: 'text.secondary', mt: 1 }}>
             Instances started by the launcher pull this from GitHub when idle. Dev runs ignore it.
           </Typography>
-        </Stack>
+        </Box>
       </Paper>
 
       {/* ---------------- Jobs ---------------- */}
@@ -467,6 +465,7 @@ export default function CcgAgent() {
               size="small"
               label="Status"
               value={jobFilter}
+              slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
               onChange={(e) => setJobFilter(e.target.value)}
               sx={{ minWidth: 130 }}
             >
@@ -626,6 +625,7 @@ export default function CcgAgent() {
             select
             size="small"
             label="Instance"
+            slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
             value={logInstance}
             onChange={(e) => setLogInstance(e.target.value)}
             sx={{ minWidth: 200 }}
@@ -743,7 +743,7 @@ export default function CcgAgent() {
         </DialogTitle>
         <DialogContent>
           {detailJob ? (
-            <Stack spacing={2}>
+            <Stack direction="column" spacing={2}>
               <Typography variant="body2">
                 Created {when(detailJob.createdAt)} · started {when(detailJob.claimedAt)} · finished{' '}
                 {when(detailJob.finishedAt)}

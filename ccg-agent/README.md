@@ -4,6 +4,8 @@ An always-on local worker (the home Windows PC, or the MacBook while traveling) 
 queued in CCG. Tools ("modules") plug into it: `system` (test jobs) today, `fbm` next, `reverb`
 later.
 
+**Design, decisions, API and data model, Mac test plan, roadmap:** see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ```
 Admin (CCG Agent page)  ──queue jobs / activate keys / set version──▶  Worker + D1
                                                                          ▲   │
