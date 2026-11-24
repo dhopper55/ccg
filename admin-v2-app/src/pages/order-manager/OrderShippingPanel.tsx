@@ -38,6 +38,8 @@ export type OrderShippingShipment = {
   trackingCode: string;
   trackingUrl: string | null;
   labelCostCents: number | null;
+  insuredValueCents?: number | null;
+  insuranceCostCents?: number | null;
   hasLabel?: boolean;
   isTest?: boolean;
   shippedAt: string;
@@ -88,6 +90,10 @@ type QuoteResponse = {
 
 const formatCents = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+// EasyPost shipment insurance: 1% of declared value. EasyPost's docs and help pages disagree
+// on the minimum ($0.50 vs $1); this is only an estimate, and the real charge comes back in fees.
+const estimateInsuranceCents = (valueCents: number) => Math.max(100, Math.round(valueCents * 0.01));
+
 // "GroundAdvantage" -> "Ground Advantage", "FEDEX_GROUND" -> "Fedex Ground"
 function prettyService(service: string): string {
   if (service.includes('_')) {
@@ -118,11 +124,13 @@ export default function OrderShippingPanel({
   orderId,
   shipping,
   shipTo,
+  declaredValueCents,
   onChanged,
 }: {
   orderId: string;
   shipping: OrderShippingSummary;
   shipTo: OrderShipTo;
+  declaredValueCents?: number;
   onChanged: () => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
@@ -243,7 +251,16 @@ export default function OrderShippingPanel({
           {shipment.labelCostCents != null ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Label cost {formatCents(shipment.labelCostCents)}
+              {shipment.insuredValueCents != null && shipment.insuranceCostCents != null
+                ? ` (incl. ${formatCents(shipment.insuranceCostCents)} insurance)`
+                : ''}
             </Typography>
+          ) : null}
+          {shipment.insuredValueCents != null ? (
+            <Stack direction="row" sx={{ gap: 0.75, alignItems: 'center', color: 'text.secondary' }}>
+              <IconifyIcon icon="material-symbols:verified-user-outline-rounded" fontSize={18} />
+              <Typography variant="body2">Insured for {formatCents(shipment.insuredValueCents)}</Typography>
+            </Stack>
           ) : null}
           {shipping.reverb?.applies ? (
             shipment.channelPushStatus === 'pushed' ? (
@@ -346,6 +363,7 @@ export default function OrderShippingPanel({
         open={quoteOpen}
         orderId={orderId}
         shipTo={shipTo}
+        declaredValueCents={declaredValueCents}
         onClose={() => setQuoteOpen(false)}
         onBought={() => {
           setQuoteOpen(false);
@@ -371,12 +389,14 @@ function QuoteDialog({
   open,
   orderId,
   shipTo,
+  declaredValueCents,
   onClose,
   onBought,
 }: {
   open: boolean;
   orderId: string;
   shipTo: OrderShipTo;
+  declaredValueCents?: number;
   onClose: () => void;
   onBought: () => void;
 }) {
@@ -401,6 +421,13 @@ function QuoteDialog({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
   const [buyError, setBuyError] = useState('');
+  const [insure, setInsure] = useState(false);
+  const [insuredValue, setInsuredValue] = useState('');
+
+  const defaultInsuredValue = declaredValueCents && declaredValueCents > 0 ? (declaredValueCents / 100).toFixed(2) : '';
+  const insuredValueCents = Math.round((Number.parseFloat(insuredValue) || 0) * 100);
+  const insuranceReady = !insure || insuredValueCents >= 1;
+  const insuranceEstimateCents = insure && insuredValueCents > 0 ? estimateInsuranceCents(insuredValueCents) : 0;
 
   useEffect(() => {
     if (!open) return;
@@ -419,6 +446,8 @@ function QuoteDialog({
     setError('');
     setConfirmOpen(false);
     setBuyError('');
+    setInsure(false);
+    setInsuredValue(defaultInsuredValue);
     fetch('/api/admin-v2/shipping/templates', { credentials: 'same-origin' })
       .then((response) => response.json())
       .then((data: { records?: PackageTemplate[] }) => setTemplates(Array.isArray(data.records) ? data.records : []))
@@ -504,13 +533,13 @@ function QuoteDialog({
   const selectedRate = quote?.rates?.find((rate) => rate.id === selectedRateId) ?? null;
 
   const buyLabel = async () => {
-    if (!selectedRate || !quote?.shipmentId || isBuying) return;
+    if (!selectedRate || !quote?.shipmentId || isBuying || !insuranceReady) return;
     setIsBuying(true);
     setBuyError('');
     try {
       const data = await postJson<{ trackingCode?: string; isTest?: boolean; reverb?: ChannelPushResult; gearExchange?: ChannelPushResult }>(
         `/api/admin-v2/orders/${encodeURIComponent(orderId)}/shipping/buy`,
-        { shipmentId: quote.shipmentId, rateId: selectedRate.id },
+        { shipmentId: quote.shipmentId, rateId: selectedRate.id, insuredValueCents: insure ? insuredValueCents : undefined },
       );
       enqueueSnackbar(`${data.isTest ? 'Test label' : 'Label'} bought. Tracking ${data.trackingCode || ''}`, { variant: 'success' });
       if (data.reverb?.status === 'failed') {
@@ -729,7 +758,10 @@ function QuoteDialog({
               {quote?.mode === 'test' ? (
                 <Alert severity="info">EasyPost test mode: no charge, and the tracking number is not real.</Alert>
               ) : (
-                <Alert severity="warning">Production: your EasyPost account will be charged {formatCents(selectedRate.rateCents)}.</Alert>
+                <Alert severity="warning">
+                  Production: your EasyPost account will be charged {formatCents(selectedRate.rateCents)}
+                  {insuranceEstimateCents > 0 ? ` plus about ${formatCents(insuranceEstimateCents)} for insurance` : ''}.
+                </Alert>
               )}
               <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
                 <CarrierLogo carrier={selectedRate.carrier} size={36} />
@@ -764,6 +796,33 @@ function QuoteDialog({
                   {shipTo.city ? ` · ${shipTo.city}, ${shipTo.state} ${shipTo.postalCode}` : ''}
                 </Typography>
               </Box>
+              <Divider />
+              <Box>
+                <FormControlLabel
+                  control={<Checkbox checked={insure} onChange={(event) => setInsure(event.target.checked)} disabled={isBuying} />}
+                  label="Insure this shipment"
+                />
+                {insure ? (
+                  <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', mt: 1 }}>
+                    <TextField
+                      size="small"
+                      type="number"
+                      label="Declared value"
+                      value={insuredValue}
+                      onChange={(event) => setInsuredValue(event.target.value)}
+                      disabled={isBuying}
+                      inputProps={{ min: 1, step: 0.01 }}
+                      InputProps={{ startAdornment: <Typography variant="body2" sx={{ color: 'text.secondary', mr: 0.5 }}>$</Typography> }}
+                      error={!insuranceReady}
+                      helperText={!insuranceReady ? 'Enter the value to insure' : 'EasyPost insurance, 1% of value'}
+                      sx={{ flex: 1 }}
+                    />
+                    <Typography variant="body2" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                      {insuranceEstimateCents > 0 ? `≈ ${formatCents(insuranceEstimateCents)}` : ''}
+                    </Typography>
+                  </Stack>
+                ) : null}
+              </Box>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 The order will be marked shipped with the new tracking number.
               </Typography>
@@ -777,10 +836,12 @@ function QuoteDialog({
             variant="contained"
             color={quote?.mode === 'test' ? 'primary' : 'warning'}
             onClick={() => void buyLabel()}
-            disabled={isBuying || !selectedRate}
+            disabled={isBuying || !selectedRate || !insuranceReady}
             startIcon={isBuying ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
-            {isBuying ? 'Buying…' : `Buy for ${selectedRate ? formatCents(selectedRate.rateCents) : ''}`}
+            {isBuying
+              ? 'Buying…'
+              : `Buy for ${selectedRate ? formatCents(selectedRate.rateCents + insuranceEstimateCents) : ''}${insuranceEstimateCents > 0 ? ' with insurance' : ''}`}
           </Button>
         </DialogActions>
       </Dialog>

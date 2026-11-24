@@ -970,6 +970,7 @@ const OrderManagerItem = () => {
               <OrderShippingPanel
                 orderId={order.orderId}
                 shipping={order.shipping}
+                declaredValueCents={order.subtotalCents}
                 shipTo={{
                   name: order.customer.name,
                   line1: order.customer.shippingAddressLine1,

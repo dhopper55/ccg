@@ -146,6 +146,8 @@ function mapShipment(row: Record<string, unknown>): Record<string, unknown> {
     trackingCode,
     trackingUrl: carrierTrackingUrl(carrier, trackingCode),
     labelCostCents: row.label_cost_cents == null ? null : numberOrZero(row.label_cost_cents),
+    insuredValueCents: row.insured_value_cents == null ? null : numberOrZero(row.insured_value_cents),
+    insuranceCostCents: row.insurance_cost_cents == null ? null : numberOrZero(row.insurance_cost_cents),
     hasLabel: Boolean(normalizeText(row.label_url, '')),
     lengthIn: row.length_in == null ? null : Number(row.length_in),
     widthIn: row.width_in == null ? null : Number(row.width_in),
@@ -393,8 +395,9 @@ export async function handleAdminV2OrderShippingQuote(request: Request, orderId:
 
 // ---- Buy label -------------------------------------------------------------------------
 
-// POST /api/admin-v2/orders/:id/shipping/buy  { shipmentId, rateId }
-// Buys one of the rates from a saved quote and marks the order shipped.
+// POST /api/admin-v2/orders/:id/shipping/buy  { shipmentId, rateId, insuredValueCents? }
+// Buys one of the rates from a saved quote and marks the order shipped. With insuredValueCents,
+// EasyPost insurance for that declared value is bought in the same call (1% of value).
 export async function handleAdminV2OrderShippingBuy(request: Request, orderId: string, env: Env): Promise<Response> {
   try {
     const order = await loadShippableOrder(orderId, env);
@@ -404,6 +407,14 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
     const shipmentId = parseOptionalPositiveInt(body.shipmentId);
     const rateId = normalizeText(body.rateId, '');
     if (!shipmentId || !rateId) return reject('shipping.buy', 'Pick a rate first.', 400, { orderId });
+    let insuredValueCents: number | null = null;
+    if (body.insuredValueCents != null) {
+      const value = Number(body.insuredValueCents);
+      if (!Number.isFinite(value) || value < 1 || value > 100_000_000) {
+        return reject('shipping.buy', 'Enter a declared value to insure.', 400, { orderId, insuredValueCents: body.insuredValueCents });
+      }
+      insuredValueCents = Math.round(value);
+    }
 
     const quote = await env.DB.prepare('SELECT * FROM order_shipments WHERE id = ? AND order_id = ? LIMIT 1')
       .bind(shipmentId, normalizeText(order.id, '')).first<Record<string, unknown>>();
@@ -432,7 +443,11 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
       return reject('shipping.buy', `The EasyPost ${config.useTest ? 'test' : 'production'} API key is not set up yet.`, 503, { orderId });
     }
 
-    const bought = await easyPostRequest(config, `/shipments/${encodeURIComponent(easypostShipmentId)}/buy`, { rate: { id: rateId } });
+    // Insurance goes on the buy call itself, so we never end up with a paid label whose
+    // insurance failed separately.
+    const buyBody: Record<string, unknown> = { rate: { id: rateId } };
+    if (insuredValueCents != null) buyBody.insurance = (insuredValueCents / 100).toFixed(2);
+    const bought = await easyPostRequest(config, `/shipments/${encodeURIComponent(easypostShipmentId)}/buy`, buyBody);
     if (!bought.ok) return jsonResponse({ message: `Buying the label failed: ${bought.message}` }, 502);
 
     const selected = bought.data.selected_rate ?? {};
@@ -445,10 +460,27 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
       .filter((fee: any) => fee?.charged === true && fee?.refunded !== true);
     const feesCents = chargedFees.reduce((sum: number, fee: any) => sum + Math.round(Number(fee?.amount || 0) * 100), 0);
     const selectedRateCents = Number.isFinite(Number(selected.rate)) ? Math.round(Number(selected.rate) * 100) : null;
+    const insuranceFees = chargedFees.filter((fee: any) => normalizeText(fee?.type, '') === 'InsuranceFee');
+    const insuranceCostCents = insuranceFees.length > 0
+      ? insuranceFees.reduce((sum: number, fee: any) => sum + Math.round(Number(fee?.amount || 0) * 100), 0)
+      : null;
+    // EasyPost echoes the insured amount back on the shipment; fall back to what we asked for.
+    const insuredEcho = Number.parseFloat(normalizeText(bought.data.insurance, ''));
+    const insuredCents = insuredValueCents == null
+      ? null
+      : Number.isFinite(insuredEcho) && insuredEcho > 0 ? Math.round(insuredEcho * 100) : insuredValueCents;
+    if (insuredValueCents != null && insuranceCostCents == null) {
+      logOrderError('shipping.buy.insurance_fee_missing', { orderId, shipmentId, easypostShipmentId, insuredValueCents });
+    }
+    // label_cost_cents is the full charge (postage + label + insurance): it all comes off net payout.
     const paidCents = chargedFees.length > 0 ? feesCents : selectedRateCents ?? quotedRate.rateCents;
-    // Keep the carrier's post-purchase rate on record when it differs from what was charged.
-    const reratedNote = selectedRateCents != null && selectedRateCents !== paidCents
-      ? `Quoted $${(quotedRate.rateCents / 100).toFixed(2)}, charged $${(paidCents / 100).toFixed(2)}; carrier rate after purchase $${(selectedRateCents / 100).toFixed(2)}.`
+    const postageCents = paidCents - (insuranceCostCents ?? 0);
+    // Keep the carrier's post-purchase rate on record when it differs from the postage charged.
+    const reratedNote = selectedRateCents != null && selectedRateCents !== postageCents
+      ? `Quoted $${(quotedRate.rateCents / 100).toFixed(2)}, charged $${(postageCents / 100).toFixed(2)}; carrier rate after purchase $${(selectedRateCents / 100).toFixed(2)}.`
+      : '';
+    const insuranceText = insuredCents != null
+      ? ` incl. $${((insuranceCostCents ?? 0) / 100).toFixed(2)} insurance on $${(insuredCents / 100).toFixed(2)}`
       : '';
     const labelUrl = normalizeText(bought.data.postage_label?.label_url, '');
     const now = new Date().toISOString();
@@ -456,16 +488,21 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
     await env.DB.prepare(
       `UPDATE order_shipments
        SET status = 'purchased', carrier = ?, service = ?, tracking_code = ?, label_cost_cents = ?,
+           insured_value_cents = ?, insurance_cost_cents = ?,
            label_url = ?, notes = ?, shipped_at = ?, updated_at = ?
        WHERE id = ?`
-    ).bind(carrier, service, trackingCode || null, paidCents, labelUrl || null, reratedNote || null, now, now, shipmentId).run();
+    ).bind(
+      carrier, service, trackingCode || null, paidCents,
+      insuredCents, insuredCents != null ? insuranceCostCents : null,
+      labelUrl || null, reratedNote || null, now, now, shipmentId,
+    ).run();
     await dbRecordOrderEvent(normalizeText(order.id, ''), {
       eventType: 'shipment_purchased',
       fromStatus: normalizeText(order.status, ''),
       toStatus: normalizeText(order.status, ''),
       source: 'admin_v2',
       sourceId: easypostShipmentId,
-      message: `${config.useTest ? '[TEST] ' : ''}Bought ${carrier} ${service} label for $${(paidCents / 100).toFixed(2)}, tracking ${trackingCode || '(none)'}.`,
+      message: `${config.useTest ? '[TEST] ' : ''}Bought ${carrier} ${service} label for $${(paidCents / 100).toFixed(2)}${insuranceText}, tracking ${trackingCode || '(none)'}.`,
       payloadJson: JSON.stringify({
         shipmentId,
         easypostShipmentId,
@@ -475,6 +512,8 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
         quotedCents: quotedRate.rateCents,
         paidCents,
         selectedRateCents,
+        insuredValueCents: insuredCents,
+        insuranceCostCents,
         fees: chargedFees.map((fee: any) => ({ type: fee?.type, amount: fee?.amount })),
         trackingCode,
         isTest: config.useTest,
@@ -494,6 +533,8 @@ export async function handleAdminV2OrderShippingBuy(request: Request, orderId: s
       service,
       trackingCode,
       labelCostCents: paidCents,
+      insuredValueCents: insuredCents,
+      insuranceCostCents,
       isTest: config.useTest,
       reverb: reverb && reverb.status !== 'skipped' ? reverb : null,
       gearExchange: gearExchange && gearExchange.status !== 'skipped' ? gearExchange : null,
