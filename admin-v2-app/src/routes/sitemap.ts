@@ -189,6 +189,14 @@ const sitemap: MenuItem[] = [
         active: true,
       },
       {
+        name: 'CCG Agent',
+        key: 'ccg_agent',
+        path: paths.ccgAgent,
+        pathName: 'ccg-agent',
+        icon: 'material-symbols:smart-toy-outline',
+        active: true,
+      },
+      {
         name: 'System Settings',
         key: 'system_settings',
         path: paths.systemSettings,

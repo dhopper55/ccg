@@ -29,6 +29,7 @@ import ValueReportItem from 'pages/value-reports/ValueReportItem';
 import ShopStatistics from 'pages/shop-statistics/ShopStatistics';
 import AdvertisingFlyers from 'pages/advertising-flyers/AdvertisingFlyers';
 import SystemSettings from 'pages/system-settings/SystemSettings';
+import CcgAgent from 'pages/ccg-agent/CcgAgent';
 import LoggedOut from 'pages/authentication/default/LoggedOut';
 import Logout from 'pages/authentication/default/Logout';
 import Signup from 'pages/authentication/default/jwt/Signup';
@@ -139,6 +140,10 @@ export const routes: RouteObject[] = [
           {
             path: paths.systemSettings,
             element: <SystemSettings />,
+          },
+          {
+            path: paths.ccgAgent,
+            element: <CcgAgent />,
           },
           {
             path: paths.inventoryItem,

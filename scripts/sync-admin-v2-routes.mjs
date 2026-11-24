@@ -21,6 +21,7 @@ const routeDirs = [
   'shop-statistics',
   'advertising-flyers',
   'system-settings',
+  'ccg-agent',
   'listing-evaluator',
   'listing-evaluator-results',
   'listing-evaluator-item',

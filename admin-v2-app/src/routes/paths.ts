@@ -44,6 +44,7 @@ const paths = {
   shopStatistics: '/shop-statistics',
   advertisingFlyers: '/advertising-flyers',
   systemSettings: '/system-settings',
+  ccgAgent: '/ccg-agent',
   inventoryItem: '/inventory-item',
   inventoryItemWithId: (id: string) => `/inventory-item?id=${encodeURIComponent(id)}`,
   inventoryItemFromListing: (listingId: string) =>

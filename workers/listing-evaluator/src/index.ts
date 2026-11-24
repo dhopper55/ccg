@@ -337,6 +337,7 @@ import {
 } from './apify/handlers.js';
 import { handleMcpHost, isMcpRequest } from './eval/router.js';
 import { handleEvalAdminRequest, isEvalAdminPath } from './eval/admin-handlers.js';
+import { handleAgentAdminRequest, handleAgentApiRequest, isAgentAdminPath, isAgentApiPath } from './agent/handlers.js';
 import { handleShareEval, SHARE_EVAL_PATH } from './eval/share.js';
 import { handleStorageLocationsList, STORAGE_LOCATIONS_PATH } from './inventory/storage-locations.js';
 
@@ -388,6 +389,11 @@ export default {
     if (path === '/api/logout' && request.method === 'POST') {
       const response = await handleLogout();
       return withCors(response, request, env);
+    }
+
+    // CCG Agent (local always-on tool) authenticates with its own per-instance key, not an admin session.
+    if (isAgentApiPath(path)) {
+      return handleAgentApiRequest(request, env, path);
     }
 
     // Gear Exchange webhooks authenticate with their own bearer token, not an admin session.
@@ -445,6 +451,12 @@ export default {
       if (authResponse) {
         return withCors(authResponse, request, env);
       }
+    }
+
+    // CCG Agent admin: instances/keys, job queue, logs, desired version (admin login only).
+    if (isAgentAdminPath(path)) {
+      const response = await handleAgentAdminRequest(request, env, path);
+      if (response) return withCors(response, request, env);
     }
 
     // CCG Eval: focus pings, evaluation polling, Undo and draft linking (admin login only).
