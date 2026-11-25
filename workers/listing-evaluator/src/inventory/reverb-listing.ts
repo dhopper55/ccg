@@ -389,6 +389,46 @@ export function buildReverbListingUpdatePayload(
   };
 }
 
+// ---- Shipping sync on "Save Changes" ----------------------------------------------------
+// CCG doesn't store which shipping method a Reverb listing was created with, so read it back.
+// Confirmed live 2026-11-24 (item 911): a flat-rate listing returns
+//   shipping: { local: true, rates: [{ region_code: 'US_CON', rate: { amount: '65.00' }, carrier_calculated: false }] }
+// and no shipping_profile_id. A carrier-calculated listing (shipping profile) is recognised by
+// carrier_calculated: true on a rate, or a shipping_profile_id, and is left alone: Reverb works
+// out its rates, so CCG's fixed cost doesn't apply.
+export type ReverbShippingMode = 'manual' | 'calculated';
+
+export async function fetchReverbShippingMode(
+  listingId: string,
+  env: Env,
+): Promise<{ ok: true; mode: ReverbShippingMode } | { ok: false; message: string; status: number }> {
+  const response = await fetch(`${REVERB_SEARCH_API_URL}/${encodeURIComponent(listingId)}`, {
+    method: 'GET',
+    headers: reverbRequestHeaders(env),
+  });
+  if (!response.ok) {
+    return { ok: false, status: response.status, message: `Couldn't read the listing's shipping from Reverb (HTTP ${response.status}).` };
+  }
+  const data = await response.json() as {
+    shipping_profile_id?: unknown;
+    shipping?: { rates?: Array<{ carrier_calculated?: unknown }>; user_region_rate?: { carrier_calculated?: unknown } };
+  };
+  const rates = Array.isArray(data.shipping?.rates) ? data.shipping!.rates! : [];
+  const calculated = Boolean(data.shipping_profile_id)
+    || rates.some((rate) => rate?.carrier_calculated === true)
+    || data.shipping?.user_region_rate?.carrier_calculated === true;
+  return { ok: true, mode: calculated ? 'calculated' : 'manual' };
+}
+
+/** Flat/free listings: CCG's Allow Shipping + Shipping Price ($0 = free). Off = local pickup only. */
+export function buildReverbShippingPayload(allowShipping: boolean, fixedShippingAmount: number): Record<string, unknown> {
+  if (!allowShipping) return { local: true, rates: [] };
+  return {
+    local: true,
+    rates: [{ region_code: 'US_CON', rate: { amount: Math.max(0, fixedShippingAmount).toFixed(2), currency: 'USD' } }],
+  };
+}
+
 export async function updateReverbListing(
   listingId: string,
   payload: Record<string, unknown>,

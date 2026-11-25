@@ -27,7 +27,7 @@ Claude subscription on a real machine.
 | Module | Status | What it does |
 |---|---|---|
 | `system` | **Built** | Test jobs: `ping` (immediate echo) and `sleep` (long job for testing cancel and leases) |
-| `fbm` | **Next (Phase 3–4)** | Facebook Marketplace: "Add to FBM" in admin queues `fbm.add`, and the agent **publishes** the listing with Playwright (reusing `ccg-fbm-sync/fbm_client.py`). Later: `fbm.update` and `fbm.delete`, queued automatically on the same inventory changes that trigger Reverb and Gear Exchange syncs (the save path in `workers/listing-evaluator/src/inventory/crud2.ts`) |
+| `fbm` | **Built, being live-tested (Phase 3)** | Facebook Marketplace. `fbm.add`: "Add to FBM" on the item page queues it, and the agent **publishes** with Playwright, ticks the 3 hard-coded Colorado music groups, and the Worker links the new listing ID. `fbm.update`: queued automatically when an item on FBM is saved with a changed title, description, price, video, brand, model, year, finish, quantity or shipping setting (not photos). See §3.7. Deletes come later |
 | `reverb` | **Shell only** | Future Reverb deal finder: crawl the Reverb API, filter and score against comps, then have headless Claude Code (`claude -p`, on the Claude subscription) evaluate the shortlist and write results back to CCG |
 
 ---
@@ -197,6 +197,29 @@ All timestamps are Unix epoch milliseconds.
 
 ---
 
+### 3.7 Facebook module (`ccg_agent/modules/fbm/`)
+
+| File | Role |
+|---|---|
+| `browser.py` | Persistent Chromium profile at `~/.ccg-agent/fb-profile` (Windows: `%USERPROFILE%\.ccg-agent\fb-profile`), always headed. `check_login()` loads the create-listing form and checks for its photo input. `python -m ccg_agent fb-login` opens the profile for a person to log in; it waits for Facebook's session cookie without touching the page. Only one process can open the profile, so stop the agent first |
+| `form.py` | Form helpers copied from `ccg-fbm-sync/fbm_client.py` on 2026-11-24, with the same selectors and quirks. Steps raise `FbmStepError` instead of pausing for Enter |
+| `flows.py` | `publish_listing`: details → delivery → acts on whichever step shows (Allow offers is always turned off) → "List in more places" (groups found **by name**, since Facebook reorders them) → Publish, with the new ID read from Facebook's GraphQL response. `update_listing`: the edit page (`/marketplace/edit/?listing_id=`) → title, price, condition, description, delivery → Update/Save. **The edit flow hasn't been tested live yet.** |
+| `__init__.py` | `FbmModule`: the login check (re-run every 30 minutes; every 5 minutes while failing), the `add` and `update` handlers, and a screenshot on any failure |
+
+**Rules:**
+- **Shipping and offers:** shipping uses "your own label" at the item's fixed cost, and is off for anything over $500 (Facebook's limit), which becomes local pickup only. Offers are always off.
+- **Logged out:** if Facebook is logged out when a job starts, the job is **released** back to the queue without using an attempt. The instance then reports `fb_login_needed`, and admin shows a banner.
+- **Publish never runs twice:** an `fbm.add` job has `max_attempts = 1`. If the item already has a listing ID when the job runs, the agent skips it. If Facebook published but the ID wasn't captured, the job fails with "paste the ID by hand; don't click Add to FBM again".
+- **`fbm.update`:** queued by `queueFbmUpdateAfterSave` (in `src/agent/fbm.ts`) after a successful save, at most one queued per item, with 3 attempts. It is asynchronous, so a save never fails because of Facebook. A failed update shows "out of sync as of …" on the item page.
+- **Missing group:** a group that can't be found is logged and listed under `groupsMissing` in the result. The listing is still published.
+
+**Worker endpoints:**
+- `POST /api/admin-v2/agent/fbm/items/:id/add` and `GET …/status` for the item page.
+- `POST /api/agent/fbm/item` returns item data, but only for an item whose job this instance holds.
+- `POST /api/agent/jobs/:id/release` and `…/screenshot` (stored in R2 under `agent/<jobId>/`). Admin views screenshots through `GET /api/admin-v2/agent/screenshot?key=`.
+
+---
+
 ## 4. Testing on the MacBook (before the PC exists)
 
 Prerequisites: the worker is deployed and the migration has run (both done 2026-11-24).
@@ -280,8 +303,8 @@ never takes jobs.
 |---|---|---|
 | 1 | Worker: instances and keys, heartbeat, job queue, logs, admin page | **Done** |
 | 2 | Agent: launcher, loop, key check, remote logging, self-update, Windows installer, `system` and `reverb` shell | **Done** |
-| 3 | `fbm.add`: wrap `create_draft_listing`, switch it to **publish**, save `fb_listing_id`, replace the "Copy FBM command" button in `InventoryItem.tsx` with **Add to FBM**, add Facebook group and shipping settings, report `fb_login_needed` | Next |
-| 4 | `fbm.update` / `fbm.delete`, auto-queued from the inventory save path (same triggers as Reverb and Gear Exchange) and on sale from any channel | Planned |
+| 3 | FBM: `fbm.add` (publish + 3 groups) and automatic `fbm.update`, Add to FBM button and out-of-sync warning, `fb-login`, screenshots | **Built; live-testing on the Mac** |
+| 4 | `fbm.delete` when an item sells on any channel; shipping changes also synced to Reverb (GX done) | Planned |
 | 5 | Harden the home PC: Tailscale, RDP, alerts | Planned |
 | 6 | `reverb` deal finder: API crawl, comps, headless Claude Code evaluation, results stored in CCG | Planned |
 

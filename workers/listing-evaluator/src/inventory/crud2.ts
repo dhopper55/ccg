@@ -9,6 +9,7 @@ import { ensureInventoryHostedImageUrls } from './db-images.js';
 import { dbUpsertInventoryAddtl } from './addtl.js';
 import { dbGetGxLinkForItem } from '../gx/db.js';
 import { syncGxListingOnSave } from '../gx/handlers.js';
+import { queueFbmUpdateAfterSave } from '../agent/fbm.js';
 import { endGxListingForItem } from '../gx/sales.js';
 import { resolveReverbCategoryForItem, dbSetCcgCategoryReverbDefault } from './reverb-categories.js';
 import { channelCategoryFor } from './channel-category.js';
@@ -26,6 +27,8 @@ import {
   parseReverbWizardInput,
   buildReverbListingPayload,
   buildReverbListingUpdatePayload,
+  buildReverbShippingPayload,
+  fetchReverbShippingMode,
   createReverbListing,
   updateReverbListing,
   endReverbListing,
@@ -280,8 +283,10 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
       || normalizeText(c.yearRange, '') !== yearRange
       || normalizeText(c.finish, '') !== finish
       || Number(c.quantity ?? 0) !== quantity;
+    const reverbShippingChanged = Boolean(c.allowShipping) !== allowShipping
+      || (allowShipping && Number(c.fixedShippingAmount ?? 0) !== fixedShippingAmount);
 
-    if (reverbFieldsChanged) {
+    if (reverbFieldsChanged || reverbShippingChanged) {
       const reverbImageUrls = imageUrls
         .map((url) => toReverbFetchableImageUrl(url, env))
         .filter((url): url is string => Boolean(url));
@@ -297,6 +302,18 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
         finish,
         quantity,
       });
+      // Shipping follows CCG's Allow Shipping / Shipping Price on flat-rate and free listings;
+      // carrier-calculated (shipping profile) listings keep Reverb's rates.
+      if (reverbShippingChanged) {
+        const shippingMode = await fetchReverbShippingMode(String(reverbListingIdForSync), env);
+        if (!shippingMode.ok) {
+          const status = shippingMode.status >= 400 && shippingMode.status < 600 ? shippingMode.status : 502;
+          return jsonResponse({ message: `Unable to sync shipping to Reverb: ${shippingMode.message}` }, status);
+        }
+        if (shippingMode.mode === 'manual') {
+          updatePayload.shipping = buildReverbShippingPayload(allowShipping, fixedShippingAmount);
+        }
+      }
       const updateResult = await updateReverbListing(String(reverbListingIdForSync), updatePayload, env);
       if (!updateResult.ok) {
         const status = updateResult.status >= 400 && updateResult.status < 600 ? updateResult.status : 502;
@@ -314,6 +331,8 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     videoUrl,
     brand,
     yearRange,
+    allowShipping,
+    fixedShippingAmount,
     images: imageUrls.map((url, index) => ({
       url,
       isPrivate: index === 0 ? false : Boolean(imageEntriesInput.find((entry) => entry.url === url)?.isPrivate),
@@ -894,6 +913,24 @@ export async function handleInventoryUpdate(request: Request, path: string, env:
     { becameUnsold: previousIsSold && !isSold, isSold },
     env,
   );
+
+  // Facebook has no API: if the item is on FBM and a synced field changed, queue an update for
+  // the CCG Agent. Async and best-effort — it never blocks or fails this save.
+  if (!isSold) {
+    await queueFbmUpdateAfterSave(env, recordId, current as Record<string, unknown>, {
+      saleTitle,
+      saleDescription,
+      salePrice,
+      videoUrl,
+      brand,
+      model,
+      yearRange,
+      finish,
+      quantity,
+      allowShipping,
+      fixedShippingAmount,
+    });
+  }
 
   return jsonResponse({ ok: true, becameSold, soldId: becameSold ? recordId : null });
 }

@@ -311,6 +311,16 @@ export async function dbCompleteJob(
   return (res.meta?.changes ?? 0) > 0;
 }
 
+/** Hands a claimed job back to the queue without using up an attempt (e.g. Facebook logged out). */
+export async function dbReleaseJob(env: Env, instanceId: string, jobId: string): Promise<boolean> {
+  const res = await env.DB.prepare(
+    `UPDATE agent_jobs SET status = 'queued', claimed_by = NULL, claimed_at = NULL, lease_expires_at = NULL,
+       attempts = MAX(0, attempts - 1)
+     WHERE id = ? AND claimed_by = ? AND status = 'claimed'`,
+  ).bind(jobId, instanceId).run();
+  return (res.meta?.changes ?? 0) > 0;
+}
+
 export async function dbGetJob(env: Env, id: string): Promise<JobRow | null> {
   return env.DB.prepare('SELECT * FROM agent_jobs WHERE id = ?').bind(id).first<JobRow>();
 }

@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from .base import Module
+from .fbm import FbmModule
 from .reverb import ReverbModule
 from .system import SystemModule
 
 
 def load_modules() -> list[Module]:
-    return [SystemModule(), ReverbModule()]
+    return [SystemModule(), FbmModule(), ReverbModule()]

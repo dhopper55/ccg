@@ -996,6 +996,23 @@ function generateSaleUrlSlugFromTitle(value: string): string {
   return sanitizeSaleUrlSlug(stripTitleLabel(value));
 }
 
+// CCG Agent Facebook jobs for this item (GET /api/admin-v2/agent/fbm/items/:id/status).
+type FbmJobSummary = {
+  id: string;
+  type: string;
+  status: 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
+  error: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+};
+
+type FbmItemStatus = {
+  add: FbmJobSummary | null;
+  update: FbmJobSummary | null;
+  addPending: boolean;
+  outOfSync: { since: number; error: string | null } | null;
+};
+
 function getFbmListingUrl(fbListingId: string): string | null {
   const value = fbListingId.trim();
   if (!value) return null;
@@ -1473,7 +1490,8 @@ const InventoryItem = () => {
   const claudeGuardSinceRef = useRef(Date.now());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReverbActionPending, setIsReverbActionPending] = useState(false);
-  const [fbmCommandOpen, setFbmCommandOpen] = useState(false);
+  const [fbmStatus, setFbmStatus] = useState<FbmItemStatus | null>(null);
+  const [isFbmAddPending, setIsFbmAddPending] = useState(false);
   const [isFindingNextEval, setIsFindingNextEval] = useState(false);
   const [noEvalDialogOpen, setNoEvalDialogOpen] = useState(false);
   const [reverbWizardOpen, setReverbWizardOpen] = useState(false);
@@ -2983,12 +3001,70 @@ const InventoryItem = () => {
     setReloadToken((current) => current + 1);
   };
 
-  const fbmSyncCommand = `cd /Users/dhp/Documents/Code/ccg/ccg-fbm-sync && ./venv/bin/python add_all.py --ccg-id ${getSavableCcgNumber(form.ccgNumber) || editId || ''}`;
+  // Facebook Marketplace via the CCG Agent: "Add to FBM" queues an fbm.add job; saves queue
+  // fbm.update automatically (Worker side). This shows the job state and any out-of-sync warning.
+  const loadFbmStatus = useCallback(async () => {
+    if (!editId) {
+      setFbmStatus(null);
+      return null;
+    }
+    try {
+      const response = await fetch(`/api/admin-v2/agent/fbm/items/${encodeURIComponent(editId)}/status`, {
+        credentials: 'same-origin',
+      });
+      if (!response.ok) return null;
+      const data = (await response.json()) as FbmItemStatus;
+      setFbmStatus(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, [editId]);
 
-  const handleCopyFbmCommand = () => {
-    void navigator.clipboard.writeText(fbmSyncCommand).then(() => {
-      enqueueSnackbar('Command copied.', { variant: 'success' });
-    });
+  useEffect(() => {
+    void loadFbmStatus();
+  }, [loadFbmStatus, reloadToken]);
+
+  // While an add is queued or running, poll; when it finishes, reload the item to pick up the
+  // listing ID the Worker linked.
+  const fbmAddPending = Boolean(fbmStatus?.addPending);
+  useEffect(() => {
+    if (!fbmAddPending) return undefined;
+    const timer = window.setInterval(() => {
+      void loadFbmStatus().then((data) => {
+        if (data && !data.addPending) {
+          if (data.add?.status === 'done') enqueueSnackbar('Published on Facebook Marketplace.', { variant: 'success' });
+          setReloadToken((current) => current + 1);
+        }
+      });
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [fbmAddPending, loadFbmStatus, enqueueSnackbar]);
+
+  const handleFbmAdd = async () => {
+    if (!editId || isFbmAddPending) return;
+    if (hasUnsavedChanges()) {
+      enqueueSnackbar('Save your changes first — the agent publishes the saved item.', { variant: 'warning' });
+      return;
+    }
+    if (!window.confirm('Publish this item on Facebook Marketplace (and the 3 Colorado music groups)?')) return;
+    setIsFbmAddPending(true);
+    try {
+      const response = await fetch(`/api/admin-v2/agent/fbm/items/${encodeURIComponent(editId)}/add`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string; status?: FbmItemStatus };
+      if (!response.ok) throw new Error(data.message || 'Unable to queue the Facebook listing.');
+      if (data.status) setFbmStatus(data.status);
+      enqueueSnackbar('Queued for the CCG Agent. It will publish to Facebook shortly.', { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar(error instanceof Error ? error.message : 'Unable to queue the Facebook listing.', {
+        variant: 'error',
+      });
+    } finally {
+      setIsFbmAddPending(false);
+    }
   };
 
   const handleEvalNextProduct = async () => {
@@ -4312,23 +4388,52 @@ const InventoryItem = () => {
                         />
                         <FbmListingLink fbListingId={form.fbListingId} />
                       </Stack>
+                      {!form.fbListingId.trim() && !fbmAddPending && fbmStatus?.add?.status === 'failed' ? (
+                        <Alert severity="warning" sx={{ mt: 1 }}>
+                          Add to FBM failed
+                          {fbmStatus.add.finishedAt ? ` (${new Date(fbmStatus.add.finishedAt).toLocaleString()})` : ''}:{' '}
+                          {fbmStatus.add.error || 'unknown error'}
+                        </Alert>
+                      ) : null}
+                      {form.fbListingId.trim() && fbmStatus?.outOfSync ? (
+                        <Alert severity="warning" sx={{ mt: 1 }}>
+                          Facebook Marketplace is out of sync as of {new Date(fbmStatus.outOfSync.since).toLocaleString()}
+                          {fbmStatus.outOfSync.error ? `: ${fbmStatus.outOfSync.error}` : '.'}
+                        </Alert>
+                      ) : null}
                     </Box>
 
                     <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-                      <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on FBM.' : (form.fbListingId.trim() ? 'Already listed on FBM.' : '')}>
-                        <span>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            disabled={mode !== 'edit' || Boolean(form.fbListingId.trim())}
-                            onClick={() => setFbmCommandOpen(true)}
-                            startIcon={<Box component="img" src="/images/fb.png" alt="" sx={{ width: 16, height: 16 }} />}
-                            sx={mode === 'edit' && !form.fbListingId.trim() ? { bgcolor: '#1877F2', color: '#fff', '&:hover': { bgcolor: '#166FE5' } } : undefined}
-                          >
-                            Add to FBM
-                          </Button>
-                        </span>
-                      </Tooltip>
+                      {form.fbListingId.trim() ? null : fbmAddPending ? (
+                        <Chip
+                          size="small"
+                          color="info"
+                          variant="outlined"
+                          icon={<CircularProgress size={12} />}
+                          label={fbmStatus?.add?.status === 'claimed' ? 'FBM: publishing…' : 'FBM: queued for agent'}
+                        />
+                      ) : (
+                        <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on FBM.' : ''}>
+                          <span>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              disabled={mode !== 'edit' || isFbmAddPending}
+                              onClick={() => void handleFbmAdd()}
+                              startIcon={
+                                isFbmAddPending ? (
+                                  <CircularProgress color="inherit" size={16} />
+                                ) : (
+                                  <Box component="img" src="/images/fb.png" alt="" sx={{ width: 16, height: 16 }} />
+                                )
+                              }
+                              sx={mode === 'edit' ? { bgcolor: '#1877F2', color: '#fff', '&:hover': { bgcolor: '#166FE5' } } : undefined}
+                            >
+                              Add to FBM
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      )}
                       <Tooltip title={mode !== 'edit' ? 'Save the item first before listing it on Reverb.' : ''}>
                         <span>
                           <Button
@@ -5093,34 +5198,6 @@ const InventoryItem = () => {
           </Stack>
         )}
       </Box>
-
-      <Dialog open={fbmCommandOpen} onClose={() => setFbmCommandOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Add to FBM</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2}>
-            <DialogContentText>
-              Run this command locally to launch the FBM sync tool for this listing.
-            </DialogContentText>
-            <TextField
-              fullWidth
-              multiline
-              value={fbmSyncCommand}
-              slotProps={{
-                input: { readOnly: true, sx: { fontFamily: 'monospace', fontSize: 13 } },
-              }}
-              onFocus={(event) => event.target.select()}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCopyFbmCommand} startIcon={<IconifyIcon icon="material-symbols:content-copy-outline-rounded" />}>
-            Copy
-          </Button>
-          <Button variant="contained" onClick={() => setFbmCommandOpen(false)}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <Dialog open={noEvalDialogOpen} onClose={() => setNoEvalDialogOpen(false)}>
         <DialogTitle>Nothing to Eval</DialogTitle>

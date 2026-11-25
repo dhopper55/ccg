@@ -44,6 +44,8 @@ def ensure_environment() -> None:
          "-r", str(AGENT_DIR / "requirements.txt")],
         check=True,
     )
+    # Browser for the Facebook module (no-op when already installed).
+    subprocess.run([str(venv_python()), "-m", "playwright", "install", "chromium"], check=True)
 
 
 def run_agent() -> int:

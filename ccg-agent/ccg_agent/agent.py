@@ -21,7 +21,7 @@ from . import remote_log, version
 from .api import AgentApi, InvalidKey, NotActive, NotClaimed
 from .config import EXIT_UPDATED, Config
 from .modules import load_modules
-from .modules.base import JobCancelled, JobContext
+from .modules.base import JobCancelled, JobContext, ModuleUnavailable
 
 log = logging.getLogger("ccg_agent")
 local_log = remote_log.local_log
@@ -40,6 +40,8 @@ class Agent:
         self.modules = load_modules()
         self.handlers = {(m.name, t): h for m in self.modules for t, h in m.handlers().items()}
         self.claim_modules = sorted({m for m, _ in self.handlers})
+        # name -> [available, reason, monotonic time of next check]
+        self.availability: dict[str, list[Any]] = {name: [True, None, 0.0] for name in self.claim_modules}
 
         self.lock = threading.Lock()
         self.stop = threading.Event()
@@ -206,9 +208,17 @@ class Agent:
                 self._set_status("inactive")
                 self.stop.wait(15)
                 continue
-            self._set_status("idle")
+            claimable = self._claimable_modules()
+            blocked = [m for m in self.modules if m.name in self.availability and not self.availability[m.name][0]]
+            if blocked:
+                self._set_status(blocked[0].unavailable_status, self.availability[blocked[0].name][1])
+            else:
+                self._set_status("idle")
+            if not claimable:
+                self.stop.wait(self.claim_interval)
+                continue
             try:
-                job = api.claim(self.claim_modules)
+                job = api.claim(claimable)
             except NotActive:
                 if self.active:
                     log.info("Instance '%s' is not active — standing by.", self.label)
@@ -227,6 +237,26 @@ class Agent:
                 self.stop.wait(self.claim_interval)
         return 0
 
+    def _claimable_modules(self) -> list[str]:
+        """Re-checks module availability when due (on this thread: checks may drive a browser)."""
+        now = time.monotonic()
+        for module in self.modules:
+            state = self.availability.get(module.name)
+            if state is None or now < state[2]:
+                continue
+            try:
+                ok, reason = module.check_available()
+            except Exception as exc:
+                ok, reason = False, f"{type(exc).__name__}: {exc}"
+            if (ok, reason) != (state[0], state[1]):
+                if ok:
+                    log.info("Module '%s' is available again.", module.name)
+                else:
+                    log.warning("Module '%s' can't take jobs: %s", module.name, reason)
+            state[0], state[1] = ok, reason
+            state[2] = now + (module.availability_check_seconds if ok else 300)
+        return [name for name in self.claim_modules if self.availability[name][0]]
+
     def _run_job(self, api: AgentApi, job: dict[str, Any]) -> None:
         job_id, kind = job["id"], f"{job['module']}.{job['type']}"
         cancel = threading.Event()
@@ -239,15 +269,23 @@ class Agent:
         log.info("Job %s started: %s (attempt %s of %s).", job_id[:8], kind, job.get("attempts"), job.get("maxAttempts"))
 
         status, result, error = "failed", None, None
+        ctx = None
         try:
             handler = self.handlers.get((job["module"], job["type"]))
             if handler is None:
                 raise RuntimeError(f"This agent version can't run '{kind}' jobs.")
-            ctx = JobContext(job=job, log=logging.getLogger(f"ccg_agent.{job['module']}"),
+            ctx = JobContext(job=job, log=logging.getLogger(f"ccg_agent.{job['module']}"), api=api,
                              _cancel=cancel, _set_detail=self._set_detail)
             result = handler(ctx)
             status = "done"
             log.info("Job %s done in %.1fs.", job_id[:8], time.monotonic() - started)
+        except ModuleUnavailable as exc:
+            log.warning("Job %s: module '%s' unavailable (%s); putting the job back in the queue.",
+                        job_id[:8], job["module"], exc)
+            state = self.availability.get(job["module"])
+            if state is not None:
+                state[0], state[1], state[2] = False, str(exc), time.monotonic() + 300
+            status = "released"
         except JobCancelled:
             error = "Cancelled in Admin."
             log.warning("Job %s cancelled after %.1fs.", job_id[:8], time.monotonic() - started)
@@ -257,7 +295,15 @@ class Agent:
         finally:
             remote_log.current_job_id.reset(token)
 
-        if not cancel.is_set():
+        if ctx is not None and ctx.screenshots:
+            result = dict(result or {}) if isinstance(result, dict) or result is None else {"value": result}
+            result["screenshots"] = ctx.screenshots
+        if status == "released":
+            try:
+                api.release(job_id)
+            except Exception as exc:
+                log.warning("Couldn't release job %s (%s); its lease will expire instead.", job_id[:8], exc)
+        elif not cancel.is_set():
             self._report(api, job_id, status, result, error)
         with self.lock:
             self.current_job_id = None

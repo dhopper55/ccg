@@ -187,9 +187,22 @@ export async function handleInventoryGxRemove(_request: Request, path: string, e
 
 // ---- Edit sync (called from the inventory update handler) ------------------------------
 
+function gxShippingFields(
+  record: Record<string, unknown>,
+  stored: { localPickupAllowed?: unknown },
+): Record<string, unknown> {
+  if (!record.allowShipping) return { shippingAllowed: false, localPickupAllowed: true };
+  return {
+    shippingAllowed: true,
+    shippingCost: Math.max(0, Number(record.fixedShippingAmount || 0)),
+    localPickupAllowed: stored.localPickupAllowed === false ? false : true,
+  };
+}
+
 // If the item is on GX and a field GX shows changed, push it before CCG saves — same
 // fail-closed rule as the Reverb sync, so the two never drift silently. Listing-only answers
-// (condition, category, offers, shipping, payout) aren't on the edit form and are left alone.
+// (condition, category, offers, payout) aren't on the edit form and are left alone; shipping
+// follows the item's Allow Shipping / Shipping Price.
 // GX's PUT only adds images and reorders by source URL, so removed photos are deleted one by one.
 export async function syncGxListingOnSave(
   recordId: string,
@@ -214,6 +227,12 @@ export async function syncGxListingOnSave(
   for (const key of Object.keys(after)) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changed[key] = after[key];
   }
+  // Shipping follows CCG's Allow Shipping / Shipping Price once the item is listed. Turning
+  // shipping off makes the listing local pickup only.
+  const storedOptions = overrides as { localPickupAllowed?: unknown };
+  const shippingBefore = gxShippingFields(current, storedOptions);
+  const shippingAfter = gxShippingFields(next, storedOptions);
+  if (JSON.stringify(shippingBefore) !== JSON.stringify(shippingAfter)) Object.assign(changed, shippingAfter);
   if (!Object.keys(changed).length) return { ok: true, synced: false };
   // null clears a video on GX; other nulls (e.g. an unparseable year) are just not sent.
   for (const key of Object.keys(changed)) {

@@ -39,6 +39,14 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m ccg_agent # Ctrl+C to stop
 ```
 
+**Facebook (one time per machine):** install the browser, then log in to Facebook in the
+agent's own browser profile (stop the agent first; only one process can open the profile):
+
+```bash
+.venv/bin/python -m playwright install chromium
+.venv/bin/python -m ccg_agent fb-login
+```
+
 A direct run like this never self-updates (Admin shows it as "dev run"), so local edits are safe.
 
 ## Set up the Windows PC

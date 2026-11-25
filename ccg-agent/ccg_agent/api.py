@@ -52,5 +52,20 @@ class AgentApi:
     def complete(self, job_id: str, status: str, result: Any = None, error: str | None = None) -> None:
         self._post(f"/api/agent/jobs/{job_id}/complete", {"status": status, "result": result, "error": error})
 
+    def release(self, job_id: str) -> None:
+        self._post(f"/api/agent/jobs/{job_id}/release", {})
+
     def send_logs(self, entries: list[dict[str, Any]]) -> None:
         self._post("/api/agent/logs", {"entries": entries})
+
+    def fbm_item(self, item_id: str) -> dict[str, Any]:
+        """{item: {...}, footer} for an item this instance holds an fbm job for."""
+        return self._post("/api/agent/fbm/item", {"itemId": item_id})
+
+    def upload_screenshot(self, job_id: str, png: bytes) -> str:
+        resp = self.session.post(
+            f"{self.base_url}/api/agent/jobs/{job_id}/screenshot",
+            data=png, headers={"Content-Type": "image/png"}, timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()["key"]

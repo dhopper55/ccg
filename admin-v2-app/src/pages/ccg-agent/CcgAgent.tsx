@@ -117,6 +117,11 @@ function duration(job: Job): string {
   return s < 120 ? `${s}s` : `${Math.round(s / 60)}m`;
 }
 
+function jobScreenshots(job: Job): string[] {
+  const shots = (job.result as { screenshots?: unknown } | null)?.screenshots;
+  return Array.isArray(shots) ? shots.filter((key): key is string => typeof key === 'string') : [];
+}
+
 function isOnline(instance: Instance, overview: Overview): boolean {
   if (!instance.lastSeenAt || instance.status === 'stopped') return false;
   return overview.serverTime - instance.lastSeenAt < overview.heartbeatSeconds * 3 * 1000;
@@ -248,6 +253,18 @@ export default function CcgAgent() {
           </Button>
         </Stack>
 
+        {activeInstance &&
+        overview &&
+        isOnline(activeInstance, overview) &&
+        activeInstance.status === 'fb_login_needed' ? (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Facebook needs a login on {activeInstance.label} (
+            {activeInstance.hostname ?? 'this machine'}). Facebook jobs are waiting in the queue. On
+            that machine: stop the agent, run <code>.venv/bin/python -m ccg_agent fb-login</code>{' '}
+            (Windows: <code>.venv\Scripts\python -m ccg_agent fb-login</code>), log in, then start
+            the agent again.
+          </Alert>
+        ) : null}
         {error ? (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -298,11 +315,13 @@ export default function CcgAgent() {
                           color={
                             !online
                               ? 'default'
-                              : instance.status === 'working'
-                                ? 'warning'
-                                : instance.status === 'idle'
-                                  ? 'success'
-                                  : 'info'
+                              : instance.status === 'fb_login_needed'
+                                ? 'error'
+                                : instance.status === 'working'
+                                  ? 'warning'
+                                  : instance.status === 'idle'
+                                    ? 'success'
+                                    : 'info'
                           }
                           label={online ? (instance.status ?? 'online') : 'offline'}
                         />
@@ -754,6 +773,22 @@ export default function CcgAgent() {
                   {detailJob.error}
                 </Alert>
               ) : null}
+              {jobScreenshots(detailJob).map((key) => (
+                <Box
+                  key={key}
+                  component="a"
+                  href={`/api/admin-v2/agent/screenshot?key=${encodeURIComponent(key)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Box
+                    component="img"
+                    src={`/api/admin-v2/agent/screenshot?key=${encodeURIComponent(key)}`}
+                    alt="Screenshot from the agent"
+                    sx={{ width: 1, borderRadius: 1, border: 1, borderColor: 'divider' }}
+                  />
+                </Box>
+              ))}
               {[
                 ['Payload', detailJob.payload],
                 ['Result', detailJob.result],

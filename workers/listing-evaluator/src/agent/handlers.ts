@@ -5,6 +5,9 @@
 //   POST /api/agent/jobs/claim           { modules } -> { job | null }      (423 if this key isn't active)
 //   POST /api/agent/jobs/:id/complete    { status: 'done'|'failed', result?, error? }
 //   POST /api/agent/logs                 { entries: [{ ts, level, message, jobId? }] }
+//   POST /api/agent/jobs/:id/release     put a claimed job back in the queue (attempt not counted)
+//   POST /api/agent/jobs/:id/screenshot  raw PNG body -> { key } in R2 (shown in Admin)
+//   POST /api/agent/fbm/item             { itemId } -> item data for a held fbm job (see fbm.ts)
 //   An unknown/deleted key gets 401 { error: 'invalid_key' }; the agent backs off and retries.
 //
 // Admin-facing (admin login, behind requireAuth in index.ts):
@@ -20,9 +23,13 @@
 //   POST /api/admin-v2/agent/jobs/:id/retry
 //   GET  /api/admin-v2/agent/logs?instanceId=&jobId=&limit=
 //   POST /api/admin-v2/agent/settings                { desiredRef }
+//   POST /api/admin-v2/agent/fbm/items/:id/add       queue fbm.add ("Add to FBM")
+//   GET  /api/admin-v2/agent/fbm/items/:id/status    latest add/update jobs + out-of-sync warning
+//   GET  /api/admin-v2/agent/screenshot?key=         a job screenshot from R2
 
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
+import { agentFbmItem, fbmItemStatus, onFbmJobCompleted, queueFbmAdd } from './fbm.js';
 import {
   CLAIM_INTERVAL_SECONDS,
   HEARTBEAT_SECONDS,
@@ -43,6 +50,7 @@ import {
   dbListJobs,
   dbListLogs,
   dbRecordHeartbeat,
+  dbReleaseJob,
   dbRenameInstance,
   dbRetryJob,
   dbSetSetting,
@@ -113,8 +121,22 @@ export async function handleAgentApiRequest(request: Request, env: Env, path: st
     if (!instance) return json({ error: 'invalid_key', message: 'Unknown or revoked agent key.' }, 401);
 
     if (path === '/api/agent/heartbeat') return agentHeartbeat(request, env, instance);
+    if (path === '/api/agent/fbm/item') {
+      const itemId = str((await readJson(request)).itemId, 20);
+      if (!itemId || !/^\d+$/.test(itemId)) return json({ error: 'bad_request', message: 'itemId is required.' }, 400);
+      const data = await agentFbmItem(env, instance, itemId);
+      return data instanceof Response ? data : json(data);
+    }
+    const screenshot = path.match(/^\/api\/agent\/jobs\/([0-9a-f-]{36})\/screenshot$/);
+    if (screenshot) return agentScreenshot(request, env, instance, screenshot[1]);
     if (path === '/api/agent/jobs/claim') return agentClaim(request, env, instance);
     if (path === '/api/agent/logs') return agentLogs(request, env, instance);
+    const release = path.match(/^\/api\/agent\/jobs\/([0-9a-f-]{36})\/release$/);
+    if (release) {
+      return (await dbReleaseJob(env, instance.id, release[1]))
+        ? json({ ok: true })
+        : json({ error: 'not_claimed', message: 'This job is not claimed by this instance.' }, 409);
+    }
     const complete = path.match(/^\/api\/agent\/jobs\/([0-9a-f-]{36})\/complete$/);
     if (complete) return agentComplete(request, env, instance, complete[1]);
     return json({ error: 'not_found' }, 404);
@@ -180,7 +202,31 @@ async function agentComplete(request: Request, env: Env, instance: InstanceRow, 
   if (!ok) {
     return json({ error: 'not_claimed', message: 'This job is not claimed by this instance (cancelled or expired).' }, 409);
   }
+  const job = await dbGetJob(env, jobId);
+  if (job) {
+    try {
+      await onFbmJobCompleted(env, job, status, body.result);
+    } catch (error) {
+      console.error('ccg-agent: post-completion step failed', { jobId, error });
+    }
+  }
   return json({ ok: true });
+}
+
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+
+/** POST /api/agent/jobs/:id/screenshot (raw PNG body) -> { key }. Only for the job's own instance. */
+async function agentScreenshot(request: Request, env: Env, instance: InstanceRow, jobId: string): Promise<Response> {
+  if (!env.CUSTOM_ITEMS_BUCKET) return json({ error: 'not_configured', message: 'No R2 bucket bound.' }, 503);
+  const job = await dbGetJob(env, jobId);
+  if (!job || job.claimed_by !== instance.id) return json({ error: 'forbidden', message: 'Not this instance\'s job.' }, 403);
+  const bytes = await request.arrayBuffer();
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_SCREENSHOT_BYTES) {
+    return json({ error: 'bad_request', message: 'Screenshot must be 1 byte to 5 MB.' }, 400);
+  }
+  const key = `agent/${jobId}/${Date.now()}.png`;
+  await env.CUSTOM_ITEMS_BUCKET.put(key, bytes, { httpMetadata: { contentType: 'image/png' } });
+  return json({ key });
 }
 
 async function agentLogs(request: Request, env: Env, instance: InstanceRow): Promise<Response> {
@@ -293,6 +339,25 @@ export async function handleAgentAdminRequest(request: Request, env: Env, path: 
       return json({
         logs: logs.map((l) => ({ id: l.id, instanceId: l.instance_id, jobId: l.job_id, ts: l.ts, level: l.level, message: l.message })),
       });
+    }
+
+    const fbmItem = path.match(/^\/api\/admin-v2\/agent\/fbm\/items\/(\d+)\/(add|status)$/);
+    if (fbmItem) {
+      const [, itemId, action] = fbmItem;
+      if (action === 'add' && method === 'POST') {
+        const queued = await queueFbmAdd(env, itemId, owner);
+        if (!queued.ok) return json({ error: 'bad_request', message: queued.message }, queued.status);
+        return json({ job: serializeJob(queued.job), created: queued.created, status: await fbmItemStatus(env, itemId) });
+      }
+      if (action === 'status' && method === 'GET') return json(await fbmItemStatus(env, itemId));
+    }
+
+    if (path === '/api/admin-v2/agent/screenshot' && method === 'GET') {
+      const key = url.searchParams.get('key') ?? '';
+      if (!/^agent\/[0-9a-f-]{36}\/\d+\.png$/.test(key) || !env.CUSTOM_ITEMS_BUCKET) return json({ error: 'not_found' }, 404);
+      const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
+      if (!object) return json({ error: 'not_found' }, 404);
+      return new Response(object.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=86400' } });
     }
 
     if (path === '/api/admin-v2/agent/settings' && method === 'POST') {
