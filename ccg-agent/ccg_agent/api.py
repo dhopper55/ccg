@@ -58,6 +58,10 @@ class AgentApi:
     def send_logs(self, entries: list[dict[str, Any]]) -> None:
         self._post("/api/agent/logs", {"entries": entries})
 
+    def eval_config(self) -> dict[str, Any]:
+        """{queued, deep, model, maxItems, timeoutMinutes} for the next eval run."""
+        return self._post("/api/agent/eval/config", {})
+
     def fbm_item(self, item_id: str) -> dict[str, Any]:
         """{item: {...}, footer} for an item this instance holds an fbm job for."""
         return self._post("/api/agent/fbm/item", {"itemId": item_id})

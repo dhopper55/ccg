@@ -72,6 +72,7 @@ type Overview = {
   instances: Instance[];
   settings: { desiredRef: string };
   jobCounts: Record<string, number>;
+  eval?: { last24h: number; maxPerDay: number };
   heartbeatSeconds: number;
   serverTime: number;
   message?: string;
@@ -315,7 +316,8 @@ export default function CcgAgent() {
                           color={
                             !online
                               ? 'default'
-                              : instance.status === 'fb_login_needed'
+                              : instance.status === 'fb_login_needed' ||
+                                  instance.status === 'claude_login_needed'
                                 ? 'error'
                                 : instance.status === 'working'
                                   ? 'warning'
@@ -477,6 +479,15 @@ export default function CcgAgent() {
                 .map(([k, v]) => `${k}: ${v}`)
                 .join(' · ') || 'No jobs yet.'}
             </Typography>
+            {overview?.eval ? (
+              <Typography variant="caption" component="div" sx={{ color: 'text.secondary' }}>
+                Agent evals in the last 24 hours: {overview.eval.last24h} of{' '}
+                {overview.eval.maxPerDay}
+                {overview.eval.last24h >= overview.eval.maxPerDay
+                  ? ' — daily limit reached, evals are waiting'
+                  : ''}
+              </Typography>
+            ) : null}
           </Box>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
             <TextField

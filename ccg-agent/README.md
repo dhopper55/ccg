@@ -39,6 +39,16 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m ccg_agent # Ctrl+C to stop
 ```
 
+**Claude Code (one time per machine), for automatic evals.** Install it, then log in once with the
+Claude **subscription** account. Don't set `ANTHROPIC_API_KEY`; the agent removes it anyway, so
+evals always run on the subscription.
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash     # macOS (Windows PowerShell: irm https://claude.ai/install.ps1 | iex)
+claude                                             # log in with the Claude account, then /exit
+claude mcp list                                    # should list the CCG Eval connector
+```
+
 **Facebook (one time per machine):** install the browser, then log in to Facebook in the
 agent's own browser profile (stop the agent first; only one process can open the profile):
 

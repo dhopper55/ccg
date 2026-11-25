@@ -8,6 +8,7 @@
 //   POST /api/agent/jobs/:id/release     put a claimed job back in the queue (attempt not counted)
 //   POST /api/agent/jobs/:id/screenshot  raw PNG body -> { key } in R2 (shown in Admin)
 //   POST /api/agent/fbm/item             { itemId } -> item data for a held fbm job (see fbm.ts)
+//   POST /api/agent/eval/config          model / item limit / timeout for the next eval run (eval.ts)
 //   An unknown/deleted key gets 401 { error: 'invalid_key' }; the agent backs off and retries.
 //
 // Admin-facing (admin login, behind requireAuth in index.ts):
@@ -26,10 +27,12 @@
 //   POST /api/admin-v2/agent/fbm/items/:id/add       queue fbm.add ("Add to FBM")
 //   GET  /api/admin-v2/agent/fbm/items/:id/status    latest add/update jobs + out-of-sync warning
 //   GET  /api/admin-v2/agent/screenshot?key=         a job screenshot from R2
+//   GET/POST /api/admin-v2/agent/eval-settings       Claude eval models + limits (Settings > System)
 
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
 import { agentFbmItem, fbmItemStatus, onFbmJobCompleted, queueFbmAdd } from './fbm.js';
+import { agentEvalConfig, dbAgentEvalsLast24h, dbGetEvalSettings, dbSaveEvalSettings, evalSettingsResponse, prepareEvalForClaim } from './eval.js';
 import {
   CLAIM_INTERVAL_SECONDS,
   HEARTBEAT_SECONDS,
@@ -121,6 +124,7 @@ export async function handleAgentApiRequest(request: Request, env: Env, path: st
     if (!instance) return json({ error: 'invalid_key', message: 'Unknown or revoked agent key.' }, 401);
 
     if (path === '/api/agent/heartbeat') return agentHeartbeat(request, env, instance);
+    if (path === '/api/agent/eval/config') return json(await agentEvalConfig(env));
     if (path === '/api/agent/fbm/item') {
       const itemId = str((await readJson(request)).itemId, 20);
       if (!itemId || !/^\d+$/.test(itemId)) return json({ error: 'bad_request', message: 'itemId is required.' }, 400);
@@ -186,8 +190,12 @@ async function agentClaim(request: Request, env: Env, instance: InstanceRow): Pr
   const modules = Array.isArray(body.modules)
     ? body.modules.filter((m): m is string => typeof m === 'string' && NAME_RE.test(m)).slice(0, 50)
     : [];
-  const job = await dbClaimJob(env, instance.id, modules);
-  return json({ job: job ? serializeJob(job) : null });
+  let claimable = modules;
+  if (modules.includes('eval') && !(await prepareEvalForClaim(env))) {
+    claimable = modules.filter((module) => module !== 'eval'); // daily eval limit reached
+  }
+  const job = await dbClaimJob(env, instance.id, claimable);
+  return json({ job: job ? serializeJob(job) : null, evalDailyLimitReached: claimable !== modules });
 }
 
 async function agentComplete(request: Request, env: Env, instance: InstanceRow, jobId: string): Promise<Response> {
@@ -262,11 +270,18 @@ export async function handleAgentAdminRequest(request: Request, env: Env, path: 
   return wrapErrors(async () => {
     if (path === '/api/admin-v2/agent' && method === 'GET') {
       await dbExpireLeases(env);
-      const [instances, settings, jobCounts] = await Promise.all([dbListInstances(env), dbGetSettings(env), dbJobCounts(env)]);
+      const [instances, settings, jobCounts, evalSettings, evalLast24h] = await Promise.all([
+        dbListInstances(env),
+        dbGetSettings(env),
+        dbJobCounts(env),
+        dbGetEvalSettings(env),
+        dbAgentEvalsLast24h(env),
+      ]);
       return json({
         instances: instances.map(serializeInstance),
         settings,
         jobCounts,
+        eval: { last24h: evalLast24h, maxPerDay: evalSettings.maxPerDay },
         heartbeatSeconds: HEARTBEAT_SECONDS,
         serverTime: Date.now(),
       });
@@ -358,6 +373,15 @@ export async function handleAgentAdminRequest(request: Request, env: Env, path: 
       const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
       if (!object) return json({ error: 'not_found' }, 404);
       return new Response(object.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=86400' } });
+    }
+
+    if (path === '/api/admin-v2/agent/eval-settings') {
+      if (method === 'GET') return json(await evalSettingsResponse(env));
+      if (method === 'POST') {
+        const problem = await dbSaveEvalSettings(env, await readJson(request));
+        if (problem) return json({ error: 'bad_request', message: problem }, 400);
+        return json(await evalSettingsResponse(env));
+      }
     }
 
     if (path === '/api/admin-v2/agent/settings' && method === 'POST') {

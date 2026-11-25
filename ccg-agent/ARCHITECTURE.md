@@ -57,6 +57,13 @@ loads the module, but no new FBM jobs get queued while both switches are off.
 - **Fixed after the last commit:** `fb-login` no longer crashes when its window is closed (it
   re-checks the login instead) and uses the real window size. Both changes are in `browser.py`.
 
+### Since the pause
+- **2026-11-25: the `eval` module was added** (§3.8), and it's the agent's only live tool. The FBM
+  module was taken out of `load_modules()` while paused, so it no longer opens a browser every 30
+  minutes; add it back when resuming.
+- **Admin menu:** "Settings" now has two entries, System (`/system-settings`) and Agent
+  (`/ccg-agent`).
+
 ### Other loose ends
 - **The Windows home PC isn't set up yet** (a Minisforum mini PC with Windows 11 Pro was
   ordered). Follow §5 and the README. The FB login must be done on that PC itself, over RDP.
@@ -87,6 +94,7 @@ Claude subscription on a real machine.
 |---|---|---|
 | `system` | **Built** | Test jobs: `ping` (immediate echo) and `sleep` (long job for testing cancel and leases) |
 | `fbm` | **Built, paused before a successful live run (see §0)** | Facebook Marketplace. `fbm.add`: "Add to FBM" on the item page queues it, and the agent **publishes** with Playwright, ticks the 3 hard-coded Colorado music groups, and the Worker links the new listing ID. `fbm.update`: queued automatically when an item on FBM is saved with a changed title, description, price, video, brand, model, year, finish, quantity or shipping setting (not photos). See §3.7. Deletes come later |
+| `eval` | **Built 2026-11-25, live test pending** | Automatic evals: the agent runs Claude Code headless (`claude -p "eval"`) on the Claude **subscription**, working through the same eval queue as typing "eval" in Claude Desktop. See §3.8 |
 | `reverb` | **Shell only** | Future Reverb deal finder: crawl the Reverb API, filter and score against comps, then have headless Claude Code (`claude -p`, on the Claude subscription) evaluate the shortlist and write results back to CCG |
 
 ---
@@ -276,6 +284,57 @@ All timestamps are Unix epoch milliseconds.
 - `POST /api/admin-v2/agent/fbm/items/:id/add` and `GET …/status` for the item page.
 - `POST /api/agent/fbm/item` returns item data, but only for an item whose job this instance holds.
 - `POST /api/agent/jobs/:id/release` and `…/screenshot` (stored in R2 under `agent/<jobId>/`). Admin views screenshots through `GET /api/admin-v2/agent/screenshot?key=`.
+
+---
+
+### 3.8 Eval module (`ccg_agent/modules/eval_claude.py`, `src/agent/eval.ts`)
+
+**Flow:**
+1. "Queue for Claude" adds items to `eval_queue`, exactly as before.
+2. Each time the active agent asks for work (every 20 seconds), `prepareEvalForClaim` makes sure
+   one `eval.drain` job is waiting if `eval_queue` has items and no drain is queued or running.
+3. The agent fetches the run config (`POST /api/agent/eval/config`: model, item limit, timeout)
+   and runs:
+   `claude -p "eval\n\nEvaluate at most N item(s)…" --model M --output-format stream-json --verbose --allowedTools mcp__claude_ai_CCG_Eval --disallowedTools Bash,Edit,Write,… --max-turns …`
+   from an empty temp folder.
+4. Claude uses the CCG Eval connector (the claude.ai connector that comes with the login) just
+   as it does in Desktop. Desktop keeps working alongside, because both claim from the same queue.
+
+**Running on the subscription, not API credits:** the agent removes `ANTHROPIC_API_KEY`,
+`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL` and the Bedrock/Vertex/Foundry switches from Claude
+Code's environment (`subscription_env()`), because with any of those set Claude Code bills
+elsewhere. One-time setup per machine: install Claude Code, then run `claude` once and log in
+with the subscription account.
+
+**Availability:** `claude mcp list` must show the CCG Eval connector. Otherwise the instance
+reports `claude_login_needed` and eval jobs wait.
+
+**Settings** (Admin > Settings > System > Claude eval, stored in `agent_settings`):
+- Regular and deep model, from a **hard-coded list** in `src/agent/eval.ts` (`EVAL_MODELS`:
+  Latest Opus = the `opus` alias, Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.2). Update that list
+  when new models ship. The default is Latest Opus.
+- Max items per run (default 10) and per rolling 24 hours (default 40). The 24-hour count is the
+  sum of `result.evaluated` across finished `eval` jobs.
+- 30 minutes per run (`EVAL_RUN_TIMEOUT_MINUTES`).
+
+**Limits:**
+- **Items per run:** the agent counts successful `save_*_evaluation` results in the stream and
+  stops Claude Code right after the Nth, before it claims another item. Leftovers get a new run.
+- **Daily limit reached:** eval jobs aren't handed out, and the Agent page shows the count.
+- **Deep items:** if the oldest queued item is deep, the run uses the deep model with a limit of 1.
+- **Interrupted item:** an item Claude was in the middle of when a run was stopped goes back to the
+  queue after 15 minutes (`STALE_IN_PROGRESS_MS`).
+
+**Results:** `evaluated`, `skipped`, `stoppedBecause`, model, turns, duration, and Claude Code's
+`total_cost_usd` estimate plus token usage. Nothing is billed on a subscription; this is only to
+measure usage.
+
+**Failures:**
+- **Subscription usage limit:** the job goes back to the queue and the module pauses for 5 minutes.
+- **Unknown model, timeout or Claude Code error:** the job fails, with the message in Admin.
+
+**Not yet confirmed live:** the exact stream-json shapes, the `mcp list` output format, and how
+Claude Code reports a usage limit. Check these against the first real run.
 
 ---
 
