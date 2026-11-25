@@ -204,6 +204,25 @@ function itemEvalText(hasPreviousAnalysis: boolean, where: 'below' | 'in previou
 // the rules below are built for one item with its options already applied. Saves always
 // overwrite the fields they write.
 
+// The three traffic-light scores save_listing_evaluation takes. "Shop price" is the private
+// party value (see SHOP_PRICING_RULE); the shop is in Englewood, CO 80113.
+const LISTING_SCORE_RULES = [
+  '- price_score: compare the listing\'s asking_price with your shop price (the private party value) and your quick flip buy price. For a multi-item lot, use the lot totals.',
+  '  - "red": asking price is at or above the shop price.',
+  '  - "yellow": asking price is below the shop price but above the quick flip buy price.',
+  '  - "green": asking price is at or below the quick flip buy price.',
+  '  - If there is no asking price, or you could not set a shop price, use "yellow".',
+  '- desire_score: in the readout, rate desirability as exactly one of Low, Low/Moderate, Moderate, Moderate/High or High. For a multi-item lot, rate the lot as a whole.',
+  '  - "red": Low.',
+  '  - "yellow": Low/Moderate or Moderate.',
+  '  - "green": Moderate/High or High.',
+  '- location_score: straight-line distance from the listing\'s location to my shop in Englewood, CO 80113. Estimate it from the city, town or ZIP in the location field; do not search for it.',
+  '  - "green": 10 miles or less.',
+  '  - "yellow": more than 10 and up to 20 miles.',
+  '  - "red": more than 20 miles.',
+  '  - If the location is empty or too vague to place, use "yellow".',
+];
+
 export function buildConnectorListingRules(options: { isMulti: boolean; deep: boolean }): string {
   return [
     'You are evaluating a marketplace listing for my shop. Look at the photos from get_item_photos; the title and seller_description fields are the seller\'s claims — check them against the photos. The asking price is context only.',
@@ -220,7 +239,7 @@ export function buildConnectorListingRules(options: { isMulti: boolean; deep: bo
     '- analysis_markdown: the readout exactly as you showed it, in Markdown, with no JSON block.',
     `- brand, model, year: these are just bookkeeping: ${LISTING_FIELD_RULE_TAIL}`,
     '- private_party_value: your private party value as a whole-dollar number (omit it if unknown). For a multi-item lot, the total for the lot.',
-    '- price_score, location_score, desire_score: set all three to "yellow" for now.',
+    ...LISTING_SCORE_RULES,
     'Saving replaces the values already on the listing.',
   ].join('\n');
 }
