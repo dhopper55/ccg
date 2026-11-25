@@ -31,7 +31,13 @@ from .base import Handler, JobCancelled, JobContext, Module, ModuleUnavailable
 CONNECTOR_TOOL_PREFIX = "mcp__claude_ai_CCG_Eval"
 SAVE_TOOLS = ("save_listing_evaluation", "save_inventory_evaluation")
 SKIP_TOOL = "skip_queued_item"
-BLOCKED_BUILTIN_TOOLS = "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task"
+# Built-in tools Claude Code must not use during an eval (ToolSearch stays allowed: it's how
+# Claude loads the connector's tools). Read-only file tools are blocked too (Glob was seen
+# used, harmlessly, on 2026-11-25).
+BLOCKED_BUILTIN_TOOLS = (
+    "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task,Agent,"
+    "Read,Glob,Grep,LS,TodoWrite"
+)
 # Anything that would make Claude Code use paid API credits or another provider.
 API_ENV_VARS = (
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
@@ -83,6 +89,8 @@ class _Run:
         self.result: dict[str, Any] | None = None
         self.hit_item_limit = False
         self.stderr_tail: list[str] = []
+        self.usage_limited: dict[str, Any] | None = None
+        self.connector_calls = 0
 
     def handle_line(self, line: str) -> None:
         line = line.strip()
@@ -95,13 +103,33 @@ class _Run:
             return
         kind = event.get("type")
         if kind == "system" and event.get("subtype") == "init":
-            tools = event.get("tools") or []
-            self.connector_ok = any(str(t).startswith(CONNECTOR_TOOL_PREFIX) for t in tools)
-            self.ctx.log.info("Claude Code started (model %s); CCG Eval connector %s.",
-                              event.get("model"), "available" if self.connector_ok else "NOT available")
+            # claude.ai connectors are usually still "pending" at init and their tools load on
+            # demand (Claude finds them with ToolSearch), so only a failed/needs-auth status
+            # means the connector is really missing (confirmed live 2026-11-25).
+            # Only an explicit failed/needs-auth stops the run here; whether the connector really
+            # works is judged after the run (did Claude manage to call any CCG Eval tool?).
+            servers = event.get("mcp_servers") or []
+            ccg = next((srv for srv in servers if "ccg" in str(srv.get("name", "")).lower()), None)
+            status = str((ccg or {}).get("status") or "not listed")
+            if ccg is not None and status in ("failed", "needs-auth"):
+                self.connector_ok = False
+            self.ctx.log.info(
+                "Claude Code started (model %s); CCG Eval connector: %s. Connectors seen: %s",
+                event.get("model"), status,
+                ", ".join(f"{srv.get('name')}={srv.get('status')}" for srv in servers) or "none",
+            )
+        elif kind == "rate_limit_event":
+            info = event.get("rate_limit_info") or {}
+            if str(info.get("status")) == "rejected":
+                self.usage_limited = info
+                self.ctx.log.warning("Claude subscription usage limit reached (%s); resets at %s.",
+                                     info.get("rateLimitType"), info.get("resetsAt"))
         elif kind == "assistant":
             for block in (event.get("message") or {}).get("content") or []:
                 if block.get("type") == "tool_use":
+                    if str(block.get("name") or "").startswith(CONNECTOR_TOOL_PREFIX):
+                        with self.lock:
+                            self.connector_calls += 1
                     name = _tool_short_name(str(block.get("name") or ""))
                     with self.lock:
                         self.pending[str(block.get("id"))] = name
@@ -228,6 +256,9 @@ class EvalModule(Module):
                         # Stop right after the Nth save, before Claude claims another item.
                         stopped_because = "item limit"
                         break
+                    if run.usage_limited:
+                        stopped_because = "usage limit"
+                        break
                     if run.connector_ok is False:
                         stopped_because = "connector missing"
                         break
@@ -273,6 +304,19 @@ class EvalModule(Module):
         ctx.log.info("Run finished: %s evaluated, %s skipped, stopped because: %s.",
                      run.evaluated, run.skipped, stopped_because)
 
+        if run.usage_limited:
+            resets = run.usage_limited.get("resetsAt")
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(int(resets))) if resets else "later"
+            summary["usageLimitResetsAt"] = resets
+            if run.evaluated == 0:
+                raise ModuleUnavailable(f"Claude subscription usage limit reached; resets {when}.")
+            return summary
+
+        if run.connector_calls == 0 and run.evaluated == 0 and stopped_because not in ("timeout",):
+            raise ModuleUnavailable(
+                "Claude Code couldn't use the CCG Eval connector on this run. Claude said: "
+                f"{(result_text or stderr_text or 'nothing')[:400]}"
+            )
         failed = bool(result.get("is_error")) or (not result and stopped_because not in ("item limit",))
         if failed and run.evaluated == 0:
             message = result_text or stderr_text or "Claude Code exited without a result."

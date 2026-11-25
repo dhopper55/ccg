@@ -94,7 +94,7 @@ Claude subscription on a real machine.
 |---|---|---|
 | `system` | **Built** | Test jobs: `ping` (immediate echo) and `sleep` (long job for testing cancel and leases) |
 | `fbm` | **Built, paused before a successful live run (see §0)** | Facebook Marketplace. `fbm.add`: "Add to FBM" on the item page queues it, and the agent **publishes** with Playwright, ticks the 3 hard-coded Colorado music groups, and the Worker links the new listing ID. `fbm.update`: queued automatically when an item on FBM is saved with a changed title, description, price, video, brand, model, year, finish, quantity or shipping setting (not photos). See §3.7. Deletes come later |
-| `eval` | **Built 2026-11-25, live test pending** | Automatic evals: the agent runs Claude Code headless (`claude -p "eval"`) on the Claude **subscription**, working through the same eval queue as typing "eval" in Claude Desktop. See §3.8 |
+| `eval` | **Live: first real eval succeeded 2026-11-25** | Automatic evals: the agent runs Claude Code headless (`claude -p "eval"`) on the Claude **subscription**, working through the same eval queue as typing "eval" in Claude Desktop. See §3.8 |
 | `reverb` | **Shell only** | Future Reverb deal finder: crawl the Reverb API, filter and score against comps, then have headless Claude Code (`claude -p`, on the Claude subscription) evaluate the shortlist and write results back to CCG |
 
 ---
@@ -333,8 +333,17 @@ measure usage.
 - **Subscription usage limit:** the job goes back to the queue and the module pauses for 5 minutes.
 - **Unknown model, timeout or Claude Code error:** the job fails, with the message in Admin.
 
-**Not yet confirmed live:** the exact stream-json shapes, the `mcp list` output format, and how
-Claude Code reports a usage limit. Check these against the first real run.
+**Confirmed live on 2026-11-25 on the MacBook:** a real queued listing was evaluated and saved
+on its own in about 45 seconds (Opus 5.5, subscription). What the run showed:
+- **The connector usually isn't ready at startup.** Claude Code's init event often lists claude.ai
+  connectors as `pending`, or doesn't list them at all. Claude loads the CCG Eval tools on demand
+  with **ToolSearch**, which must stay allowed. So the connector is judged *after* the run: if no
+  CCG Eval tool was called and nothing was evaluated, the job goes back to the queue as
+  `claude_login_needed`.
+- **Usage limits** show up in the stream as `rate_limit_event` with
+  `rate_limit_info.status = "rejected"`, plus `resetsAt` (Unix seconds) and `rateLimitType`
+  (for example `five_hour`). The agent stops the run when it sees one.
+- **Read-only built-in tools** (Glob and so on) are blocked as well as the write and shell tools.
 
 ---
 
