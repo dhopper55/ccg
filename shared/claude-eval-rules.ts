@@ -220,6 +220,7 @@ export function buildConnectorListingRules(options: { isMulti: boolean; deep: bo
     '- analysis_markdown: the readout exactly as you showed it, in Markdown, with no JSON block.',
     `- brand, model, year: these are just bookkeeping: ${LISTING_FIELD_RULE_TAIL}`,
     '- private_party_value: your private party value as a whole-dollar number (omit it if unknown). For a multi-item lot, the total for the lot.',
+    '- price_score, location_score, desire_score: set all three to "yellow" for now.',
     'Saving replaces the values already on the listing.',
   ].join('\n');
 }

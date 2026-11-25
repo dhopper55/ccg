@@ -315,6 +315,9 @@ export async function dbListListings(
        l.submitted_at,
        l.created_at,
        l.updated_at,
+       l.price_score,
+       l.location_score,
+       l.desire_score,
        CASE WHEN i.id IS NULL THEN 0 ELSE 1 END AS in_inventory
      FROM listings l
      LEFT JOIN ccg_inventory_items i
@@ -341,6 +344,9 @@ export async function dbListListings(
       submitted_at: string | null;
       created_at: string | null;
       updated_at: string | null;
+      price_score: number | null;
+      location_score: number | null;
+      desire_score: number | null;
       in_inventory: number | null;
     }>();
 
@@ -359,6 +365,9 @@ export async function dbListListings(
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
     inInventory: Boolean(row.in_inventory),
+    priceScore: row.price_score ?? 0,
+    locationScore: row.location_score ?? 0,
+    desireScore: row.desire_score ?? 0,
   }));
 
   const nextOffset = records.length === limit ? String(offsetValue + limit) : null;

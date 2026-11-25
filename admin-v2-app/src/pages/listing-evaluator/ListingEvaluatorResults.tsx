@@ -42,6 +42,10 @@ type ListingListItem = {
   createdAt?: string | null;
   updatedAt?: string | null;
   claude?: ListingClaudeState | null;
+  // 0 None, 1 Green, 2 Yellow, 3 Red (set by Claude through the CCG Eval connector).
+  priceScore?: number | null;
+  locationScore?: number | null;
+  desireScore?: number | null;
 };
 
 // Claude queue / evaluation state per row (workers/listing-evaluator/src/eval/queue.ts).
@@ -83,7 +87,42 @@ type ListingGridRow = {
   askingPriceLabel: string;
   imageSrc: string | null;
   claudeChip: ClaudeChip | null;
+  priceScore: number;
+  locationScore: number;
+  desireScore: number;
 };
+
+const SCORE_META: Record<number, { label: string; color: string }> = {
+  0: { label: 'None', color: 'text.disabled' },
+  1: { label: 'Green', color: 'success.main' },
+  2: { label: 'Yellow', color: 'warning.main' },
+  3: { label: 'Red', color: 'error.main' },
+};
+
+function normalizeScore(value: number | null | undefined): number {
+  return typeof value === 'number' && SCORE_META[value] ? value : 0;
+}
+
+function ScoreDot({ name, score }: { name: string; score: number }) {
+  const meta = SCORE_META[score] ?? SCORE_META[0];
+  return (
+    <Tooltip title={`${name}: ${meta.label}`}>
+      <Box
+        component="span"
+        aria-label={`${name} score: ${meta.label}`}
+        sx={{
+          display: 'inline-block',
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          bgcolor: meta.color,
+          flexShrink: 0,
+          verticalAlign: 'middle',
+        }}
+      />
+    </Tooltip>
+  );
+}
 
 const PAGE_SIZE = 20;
 const REQUEUE_DELAY_MS = 5 * 60 * 1000;
@@ -527,6 +566,9 @@ const ListingEvaluatorResults = () => {
           askingPriceLabel: formatCurrencyValue(record.askingPrice),
           imageSrc: buildImageSrc(record.imageUrl, record.url),
           claudeChip: buildClaudeChip(record.claude),
+          priceScore: normalizeScore(record.priceScore),
+          locationScore: normalizeScore(record.locationScore),
+          desireScore: normalizeScore(record.desireScore),
         };
       }),
     [nowMs, records],
@@ -817,6 +859,31 @@ const ListingEvaluatorResults = () => {
                       </Box>
                     </Stack>
 
+                    <Stack
+                      direction="row"
+                      sx={{ alignItems: 'center', gap: 2, flexWrap: 'wrap', minWidth: 0 }}
+                    >
+                      {(
+                        [
+                          ['Price', row.priceScore],
+                          ['Location', row.locationScore],
+                          ['Desire', row.desireScore],
+                        ] as const
+                      ).map(([name, score]) => (
+                        <Stack
+                          key={name}
+                          direction="row"
+                          spacing={0.75}
+                          sx={{ alignItems: 'center' }}
+                        >
+                          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            {name}
+                          </Typography>
+                          <ScoreDot name={name} score={score} />
+                        </Stack>
+                      ))}
+                    </Stack>
+
                     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
                       {row.sourceImageSrc || row.sourceIcon ? (
                         <Avatar
@@ -849,11 +916,20 @@ const ListingEvaluatorResults = () => {
           </Stack>
         ) : (
           <TableContainer>
-            <Table>
+            <Table sx={{ tableLayout: 'fixed', width: '100%' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ width: '100%' }}>Title</TableCell>
-                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                  <TableCell sx={{ width: '40%' }}>Title</TableCell>
+                  <TableCell align="center" sx={{ width: '16%' }}>
+                    Price Score
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: '16%' }}>
+                    Location Score
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: '16%' }}>
+                    Desire Score
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: '12%' }}>
                     Source
                   </TableCell>
                 </TableRow>
@@ -861,7 +937,7 @@ const ListingEvaluatorResults = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={2}>
+                    <TableCell colSpan={5}>
                       <Stack sx={{ alignItems: 'center', py: 6 }} spacing={2}>
                         <CircularProgress size={28} />
                         <Typography sx={{ color: 'text.secondary' }}>Loading results…</Typography>
@@ -870,7 +946,7 @@ const ListingEvaluatorResults = () => {
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={2}>
+                    <TableCell colSpan={5}>
                       <Typography sx={{ py: 4, color: 'text.secondary' }}>
                         No listing evaluator results found.
                       </Typography>
@@ -901,7 +977,7 @@ const ListingEvaluatorResults = () => {
                             <IconifyIcon icon="material-symbols:image-outline-rounded" />
                           </Avatar>
 
-                          <Box sx={{ minWidth: 0 }}>
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
                             <Link
                               underline="none"
                               color="text.primary"
@@ -916,6 +992,8 @@ const ListingEvaluatorResults = () => {
                                 fontWeight: 500,
                                 fontSize: 'subtitle2.fontSize',
                                 lineHeight: 1.4,
+                                whiteSpace: 'normal',
+                                overflowWrap: 'anywhere',
                               }}
                             >
                               {row.title}
@@ -1005,6 +1083,15 @@ const ListingEvaluatorResults = () => {
                             </Stack>
                           </Box>
                         </Stack>
+                      </TableCell>
+                      <TableCell align="center">
+                        <ScoreDot name="Price" score={row.priceScore} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <ScoreDot name="Location" score={row.locationScore} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <ScoreDot name="Desire" score={row.desireScore} />
                       </TableCell>
                       <TableCell align="center">
                         {row.sourceImageSrc || row.sourceIcon ? (

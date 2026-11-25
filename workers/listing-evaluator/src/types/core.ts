@@ -172,6 +172,10 @@ export type ListingListItem = {
   createdAt?: string | null;
   updatedAt?: string | null;
   inInventory?: boolean;
+  // 0 None, 1 Green, 2 Yellow, 3 Red (set by save_listing_evaluation).
+  priceScore?: number;
+  locationScore?: number;
+  desireScore?: number;
 };
 
 export type ListingMapItem = {

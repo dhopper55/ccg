@@ -13,7 +13,7 @@ import {
   buildConnectorListingRules,
 } from '../../../../shared/claude-eval-rules.js';
 import { dbGetFocus, dbGetLatestEvaluation, type EvalKind, type EvaluationRow } from './db.js';
-import { saveListingEvaluation } from './listing-save.js';
+import { LISTING_SCORE_VALUES, parseListingScore, saveListingEvaluation } from './listing-save.js';
 import { inventoryCategoryLines, inventoryLiveChannels, saveInventoryEvaluation } from './inventory-save.js';
 import { fetchPhotos, photoSourcesFromUrls, type PhotoSource } from './photos.js';
 import { dbClaimNext, dbCountLoading, dbCountQueued, dbGetQueueEntry, dbMarkQueueFailed, queueOptions, type QueueOptions } from './queue.js';
@@ -388,7 +388,7 @@ const saveListingEvaluationTool: ToolDefinition = {
   name: 'save_listing_evaluation',
   title: 'Save the evaluation to the listing',
   description:
-    'Saves your finished evaluation to a listing evaluator result, replacing the AI Analysis, brand, model, year and private party value. Call it once, right after you show the readout, with the listing_id and queue_id from get_next_queued_item. Pass the full readout in Markdown exactly as you showed it, without a JSON block. Then call get_next_queued_item.',
+    'Saves your finished evaluation to a listing evaluator result, replacing the AI Analysis, brand, model, year, private party value and the price, location and desire scores. Call it once, right after you show the readout, with the listing_id and queue_id from get_next_queued_item. Pass the full readout in Markdown exactly as you showed it, without a JSON block. Then call get_next_queued_item.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -399,8 +399,11 @@ const saveListingEvaluationTool: ToolDefinition = {
       model: { type: 'string', maxLength: 180 },
       year: { type: 'string', maxLength: 120 },
       private_party_value: { type: 'number', minimum: 0, description: 'Whole dollars. Omit if unknown.' },
+      price_score: { type: 'string', enum: [...LISTING_SCORE_VALUES] },
+      location_score: { type: 'string', enum: [...LISTING_SCORE_VALUES] },
+      desire_score: { type: 'string', enum: [...LISTING_SCORE_VALUES] },
     },
-    required: ['listing_id', 'analysis_markdown'],
+    required: ['listing_id', 'analysis_markdown', 'price_score', 'location_score', 'desire_score'],
     additionalProperties: false,
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
@@ -416,6 +419,12 @@ const saveListingEvaluationTool: ToolDefinition = {
         return errorResult('That queue_id belongs to a different item. Use the listing_id and queue_id from the same get_next_queued_item result.');
       }
     }
+    const priceScore = parseListingScore(args.price_score);
+    const locationScore = parseListingScore(args.location_score);
+    const desireScore = parseListingScore(args.desire_score);
+    if (!priceScore || !locationScore || !desireScore) {
+      return errorResult('Pass price_score, location_score and desire_score, each "green", "yellow" or "red".');
+    }
     const ppvRaw = args.private_party_value;
     const ppv = typeof ppvRaw === 'number' ? ppvRaw : typeof ppvRaw === 'string' ? Number(ppvRaw.replace(/[$,\s]/g, '')) : null;
     const result = await saveListingEvaluation(ctx.env, {
@@ -427,6 +436,9 @@ const saveListingEvaluationTool: ToolDefinition = {
       model: asTrimmedString(args.model, 180),
       year: asTrimmedString(args.year, 120),
       privatePartyValue: ppv != null && Number.isFinite(ppv) ? ppv : null,
+      priceScore,
+      locationScore,
+      desireScore,
     });
     if (!result.ok) return errorResult(result.error);
     return textResult({

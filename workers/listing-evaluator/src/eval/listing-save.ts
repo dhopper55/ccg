@@ -7,9 +7,28 @@ import { INVENTORY_EVAL_COLUMNS } from './inventory-save.js';
 import { safeJsonParse, sha256Hex } from './util.js';
 
 // The listing columns an evaluation may write (and Undo may restore).
-const LISTING_EVAL_COLUMNS = ['ai_analysis_text', 'brand', 'model', 'year', 'price_private_party'] as const;
+const LISTING_EVAL_COLUMNS = [
+  'ai_analysis_text',
+  'brand',
+  'model',
+  'year',
+  'price_private_party',
+  'price_score',
+  'location_score',
+  'desire_score',
+] as const;
 type ListingEvalColumn = (typeof LISTING_EVAL_COLUMNS)[number];
 type ListingEvalValues = Partial<Record<ListingEvalColumn, string | number | null>>;
+
+// Listing scores are stored as 0 None, 1 Green, 2 Yellow, 3 Red.
+export const LISTING_SCORE_VALUES = ['green', 'yellow', 'red'] as const;
+export type ListingScoreName = (typeof LISTING_SCORE_VALUES)[number];
+const LISTING_SCORE_CODES: Record<ListingScoreName, number> = { green: 1, yellow: 2, red: 3 };
+
+export function parseListingScore(value: unknown): ListingScoreName | null {
+  const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return (LISTING_SCORE_VALUES as readonly string[]).includes(text) ? (text as ListingScoreName) : null;
+}
 
 type ListingRow = {
   id: number;
@@ -21,7 +40,7 @@ async function loadListingRow(env: Env, listingId: string): Promise<ListingRow |
   const idValue = Number.parseInt(listingId, 10);
   if (!Number.isFinite(idValue) || String(idValue) !== listingId.trim()) return null;
   return env.DB.prepare(
-    'SELECT id, title, is_multi, ai_analysis_text, brand, model, year, price_private_party FROM listings WHERE id = ? LIMIT 1'
+    `SELECT id, title, is_multi, ${LISTING_EVAL_COLUMNS.join(', ')} FROM listings WHERE id = ? LIMIT 1`
   ).bind(idValue).first<ListingRow>();
 }
 
@@ -49,6 +68,9 @@ export type ListingSaveInput = {
   model?: string;
   year?: string;
   privatePartyValue?: number | null;
+  priceScore: ListingScoreName;
+  locationScore: ListingScoreName;
+  desireScore: ListingScoreName;
   queueId?: string | null;
 };
 
@@ -78,7 +100,16 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
   if (markdown.length > 60000) return { ok: false, error: 'analysis_markdown is longer than 60,000 characters. Shorten the readout and save again.' };
 
   const contentHash = await sha256Hex(
-    JSON.stringify([markdown, input.brand, input.model, input.year, input.privatePartyValue])
+    JSON.stringify([
+      markdown,
+      input.brand,
+      input.model,
+      input.year,
+      input.privatePartyValue,
+      input.priceScore,
+      input.locationScore,
+      input.desireScore,
+    ])
   );
   const listingId = String(row.id);
   const duplicate = await dbFindRecentDuplicate(env, { kind: 'listing', recordId: listingId, draftKey: null }, contentHash);
@@ -117,6 +148,10 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
     values.price_private_party = Math.round(ppv);
   }
 
+  values.price_score = LISTING_SCORE_CODES[input.priceScore];
+  values.location_score = LISTING_SCORE_CODES[input.locationScore];
+  values.desire_score = LISTING_SCORE_CODES[input.desireScore];
+
   const now = Date.now();
   const evaluationId = crypto.randomUUID();
   const insert = dbInsertEvaluation(env, {
@@ -132,6 +167,9 @@ export async function saveListingEvaluation(env: Env, input: ListingSaveInput): 
       model: input.model ?? '',
       year: input.year ?? '',
       private_party_value: ppv ?? null,
+      price_score: input.priceScore,
+      location_score: input.locationScore,
+      desire_score: input.desireScore,
     }),
     listing_json: null,
     options_json: null,
