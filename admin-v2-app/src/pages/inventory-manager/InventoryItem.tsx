@@ -996,6 +996,11 @@ function generateSaleUrlSlugFromTitle(value: string): string {
   return sanitizeSaleUrlSlug(stripTitleLabel(value));
 }
 
+// Add to FBM: false = the original ccg-fbm-sync flow (copy a terminal command, run it locally,
+// saves a Facebook draft). true = queue an fbm.add job for the CCG Agent, which publishes.
+// The CCG Agent's FBM module is paused (2026-11-25) — see ccg-agent/ARCHITECTURE.md §0.
+const FBM_VIA_AGENT = false;
+
 // CCG Agent Facebook jobs for this item (GET /api/admin-v2/agent/fbm/items/:id/status).
 type FbmJobSummary = {
   id: string;
@@ -1492,6 +1497,7 @@ const InventoryItem = () => {
   const [isReverbActionPending, setIsReverbActionPending] = useState(false);
   const [fbmStatus, setFbmStatus] = useState<FbmItemStatus | null>(null);
   const [isFbmAddPending, setIsFbmAddPending] = useState(false);
+  const [fbmCommandOpen, setFbmCommandOpen] = useState(false);
   const [isFindingNextEval, setIsFindingNextEval] = useState(false);
   const [noEvalDialogOpen, setNoEvalDialogOpen] = useState(false);
   const [reverbWizardOpen, setReverbWizardOpen] = useState(false);
@@ -3001,6 +3007,14 @@ const InventoryItem = () => {
     setReloadToken((current) => current + 1);
   };
 
+  const fbmSyncCommand = `cd /Users/dhp/Documents/Code/ccg/ccg-fbm-sync && ./venv/bin/python add_all.py --ccg-id ${getSavableCcgNumber(form.ccgNumber) || editId || ''}`;
+
+  const handleCopyFbmCommand = () => {
+    void navigator.clipboard.writeText(fbmSyncCommand).then(() => {
+      enqueueSnackbar('Command copied.', { variant: 'success' });
+    });
+  };
+
   // Facebook Marketplace via the CCG Agent: "Add to FBM" queues an fbm.add job; saves queue
   // fbm.update automatically (Worker side). This shows the job state and any out-of-sync warning.
   const loadFbmStatus = useCallback(async () => {
@@ -4388,7 +4402,7 @@ const InventoryItem = () => {
                         />
                         <FbmListingLink fbListingId={form.fbListingId} />
                       </Stack>
-                      {!form.fbListingId.trim() && !fbmAddPending && fbmStatus?.add?.status === 'failed' ? (
+                      {FBM_VIA_AGENT && !form.fbListingId.trim() && !fbmAddPending && fbmStatus?.add?.status === 'failed' ? (
                         <Alert severity="warning" sx={{ mt: 1 }}>
                           Add to FBM failed
                           {fbmStatus.add.finishedAt ? ` (${new Date(fbmStatus.add.finishedAt).toLocaleString()})` : ''}:{' '}
@@ -4404,7 +4418,7 @@ const InventoryItem = () => {
                     </Box>
 
                     <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-                      {form.fbListingId.trim() ? null : fbmAddPending ? (
+                      {form.fbListingId.trim() ? null : FBM_VIA_AGENT && fbmAddPending ? (
                         <Chip
                           size="small"
                           color="info"
@@ -4419,7 +4433,7 @@ const InventoryItem = () => {
                               size="small"
                               variant="contained"
                               disabled={mode !== 'edit' || isFbmAddPending}
-                              onClick={() => void handleFbmAdd()}
+                              onClick={() => (FBM_VIA_AGENT ? void handleFbmAdd() : setFbmCommandOpen(true))}
                               startIcon={
                                 isFbmAddPending ? (
                                   <CircularProgress color="inherit" size={16} />
@@ -5198,6 +5212,34 @@ const InventoryItem = () => {
           </Stack>
         )}
       </Box>
+
+      <Dialog open={fbmCommandOpen} onClose={() => setFbmCommandOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Add to FBM</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <DialogContentText>
+              Run this command locally to launch the FBM sync tool for this listing.
+            </DialogContentText>
+            <TextField
+              fullWidth
+              multiline
+              value={fbmSyncCommand}
+              slotProps={{
+                input: { readOnly: true, sx: { fontFamily: 'monospace', fontSize: 13 } },
+              }}
+              onFocus={(event) => event.target.select()}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCopyFbmCommand} startIcon={<IconifyIcon icon="material-symbols:content-copy-outline-rounded" />}>
+            Copy
+          </Button>
+          <Button variant="contained" onClick={() => setFbmCommandOpen(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={noEvalDialogOpen} onClose={() => setNoEvalDialogOpen(false)}>
         <DialogTitle>Nothing to Eval</DialogTitle>

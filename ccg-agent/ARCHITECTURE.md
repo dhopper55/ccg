@@ -8,6 +8,65 @@ not decided yet is under "Open questions". For day-to-day setup commands, see [R
 
 ---
 
+## 0. Status: paused on 2026-11-25. Start here when resuming
+
+Work on the CCG Agent is **paused**. Facebook listing has gone back to the old terminal command
+for now. This section records exactly where things stand.
+
+### What's live and working
+- **Phases 1–2 (the plumbing) are done and tested on the MacBook:** instance keys (one active at
+  a time), heartbeat, the job queue, cancel, remote logs, the Admin > CCG Agent page, the
+  launcher with self-update, and the Windows installer script.
+- **Reverb and GX shipping sync on save, confirmed working.** Changing Allow Shipping or Shipping
+  Price on an item updates its Reverb listing (flat-rate and free listings only; calculated
+  listings are left alone) and its GX listing. This is Worker code in `inventory/crud2.ts`,
+  `inventory/reverb-listing.ts` and `gx/handlers.ts`, and it **stays on**. Turning shipping
+  *off* on Reverb (we send an empty rate list) was never tested, and David chose not to.
+
+### What's paused, and the two switches
+| Switch | Where | Now | What it does |
+|---|---|---|---|
+| `FBM_VIA_AGENT` | `admin-v2-app/src/pages/inventory-manager/InventoryItem.tsx` | `false` | **false:** "Add to FBM" shows the original `ccg-fbm-sync` terminal command (copy it, run it locally, saves a Facebook **draft**). **true:** "Add to FBM" queues an `fbm.add` job and the agent **publishes**. Rebuild admin after flipping |
+| `FBM_AUTO_UPDATE_ENABLED` | `workers/listing-evaluator/src/agent/fbm.ts` | `false` | **true:** saving an item that's on FBM queues an `fbm.update` job. Deploy the Worker after flipping |
+
+All the agent-side FBM code stays in place (`ccg_agent/modules/fbm/`, §3.7). The agent still
+loads the module, but no new FBM jobs get queued while both switches are off.
+
+### Where FBM testing stopped
+- **Login works.** `python -m ccg_agent fb-login` logged the MacBook's agent profile
+  (`~/.ccg-agent/fb-profile`) in to Facebook. Facebook showed a reCAPTCHA. The first version
+  cut it off; fixed by having fb-login use the real window size (`fb_browser(interactive=True)`).
+  An attempt to make the browser look less automated (to reduce captchas) was **declined as
+  detection evasion** and must not be revisited. Solving a captcha by hand at login is the
+  accepted approach.
+- **`fbm.add` (publish) has never completed a live run.** One real attempt on the MacBook was
+  stopped part way: the agent was running but no browser was open, so it was stuck before or
+  between jobs, and the cause wasn't diagnosed. On resuming:
+  1. Check Admin > CCG Agent > Jobs for any leftover `fbm.add` or `fbm.update` jobs from
+     2026-11-25 and **cancel** them, so a stale job doesn't publish an item that was since
+     listed by hand.
+  2. Flip `FBM_VIA_AGENT` to `true` and rebuild admin, start the agent, and confirm MacBook is
+     **ACTIVE / idle** (not `fb_login_needed`).
+  3. Queue one item and watch both the agent's Terminal output and the job log. The
+     least-proven steps are "List in more places" (finding the 3 groups by name, scrolling the
+     panel; group checkboxes may not have `role=checkbox`) and capturing the new listing ID from
+     the Publish response.
+- **`fbm.update` (edit) has never run.** The edit-page flow in `flows.update_listing` is a best
+  guess (`/marketplace/edit/?listing_id=`, then an Update/Save button). Expect to retune it from
+  the first failure screenshot.
+- **Fixed after the last commit:** `fb-login` no longer crashes when its window is closed (it
+  re-checks the login instead) and uses the real window size. Both changes are in `browser.py`.
+
+### Other loose ends
+- **The Windows home PC isn't set up yet** (a Minisforum mini PC with Windows 11 Pro was
+  ordered). Follow §5 and the README. The FB login must be done on that PC itself, over RDP.
+- **Keep `ccg-fbm-sync`.** It's the live way to list on FBM again until the agent resumes;
+  retire it only after the agent's FBM module is proven.
+- **Facebook deletes** (`fbm.delete` when an item sells) aren't started.
+- **The Reverb deal finder** is still an empty module.
+
+---
+
 ## 1. What this tool is
 
 CCG Agent is an **always-on local worker** that runs jobs queued in CCG (the Worker plus D1,
@@ -27,7 +86,7 @@ Claude subscription on a real machine.
 | Module | Status | What it does |
 |---|---|---|
 | `system` | **Built** | Test jobs: `ping` (immediate echo) and `sleep` (long job for testing cancel and leases) |
-| `fbm` | **Built, being live-tested (Phase 3)** | Facebook Marketplace. `fbm.add`: "Add to FBM" on the item page queues it, and the agent **publishes** with Playwright, ticks the 3 hard-coded Colorado music groups, and the Worker links the new listing ID. `fbm.update`: queued automatically when an item on FBM is saved with a changed title, description, price, video, brand, model, year, finish, quantity or shipping setting (not photos). See §3.7. Deletes come later |
+| `fbm` | **Built, paused before a successful live run (see §0)** | Facebook Marketplace. `fbm.add`: "Add to FBM" on the item page queues it, and the agent **publishes** with Playwright, ticks the 3 hard-coded Colorado music groups, and the Worker links the new listing ID. `fbm.update`: queued automatically when an item on FBM is saved with a changed title, description, price, video, brand, model, year, finish, quantity or shipping setting (not photos). See §3.7. Deletes come later |
 | `reverb` | **Shell only** | Future Reverb deal finder: crawl the Reverb API, filter and score against comps, then have headless Claude Code (`claude -p`, on the Claude subscription) evaluate the shortlist and write results back to CCG |
 
 ---
@@ -303,7 +362,7 @@ never takes jobs.
 |---|---|---|
 | 1 | Worker: instances and keys, heartbeat, job queue, logs, admin page | **Done** |
 | 2 | Agent: launcher, loop, key check, remote logging, self-update, Windows installer, `system` and `reverb` shell | **Done** |
-| 3 | FBM: `fbm.add` (publish + 3 groups) and automatic `fbm.update`, Add to FBM button and out-of-sync warning, `fb-login`, screenshots | **Built; live-testing on the Mac** |
+| 3 | FBM: `fbm.add` (publish + 3 groups) and automatic `fbm.update`, Add to FBM button and out-of-sync warning, `fb-login`, screenshots | **Built, not proven live, PAUSED (see §0)** |
 | 4 | `fbm.delete` when an item sells on any channel; shipping changes also synced to Reverb (GX done) | Planned |
 | 5 | Harden the home PC: Tailscale, RDP, alerts | Planned |
 | 6 | `reverb` deal finder: API crawl, comps, headless Claude Code evaluation, results stored in CCG | Planned |

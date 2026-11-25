@@ -18,6 +18,10 @@ import { normalizeText } from '../utils/text.js';
 import { enqueueAgentJob, isMissingTableError, type InstanceRow, type JobRow } from './store.js';
 
 const UPDATE_MAX_ATTEMPTS = 3;
+// Paused 2026-11-25 along with the CCG Agent's FBM module (see ccg-agent/ARCHITECTURE.md §0):
+// while false, saves don't queue fbm.update jobs (nothing would run them, and the edit flow is
+// untested). Flip to true and deploy the Worker to turn automatic Facebook updates back on.
+const FBM_AUTO_UPDATE_ENABLED = false;
 
 export type FbmJobSummary = {
   id: string;
@@ -130,6 +134,7 @@ export async function queueFbmUpdateAfterSave(
   current: Record<string, unknown>,
   next: FbmUpdateSource,
 ): Promise<void> {
+  if (!FBM_AUTO_UPDATE_ENABLED) return;
   try {
     const fbListingId = normalizeText(current.fbListingId, '');
     if (!fbListingId) return;
