@@ -95,6 +95,7 @@ Claude subscription on a real machine.
 | `system` | **Built** | Test jobs: `ping` (immediate echo) and `sleep` (long job for testing cancel and leases) |
 | `fbm` | **Built, paused before a successful live run (see §0)** | Facebook Marketplace. `fbm.add`: "Add to FBM" on the item page queues it, and the agent **publishes** with Playwright, ticks the 3 hard-coded Colorado music groups, and the Worker links the new listing ID. `fbm.update`: queued automatically when an item on FBM is saved with a changed title, description, price, video, brand, model, year, finish, quantity or shipping setting (not photos). See §3.7. Deletes come later |
 | `eval` | **Live: first real eval succeeded 2026-11-25** | Automatic evals: the agent runs Claude Code headless (`claude -p "eval"`) on the Claude **subscription**, working through the same eval queue as typing "eval" in Claude Desktop. See §3.8 |
+| `scout` | **Built 2026-11-25, live test pending** | Marketplace scout: runs the saved Facebook Marketplace searches (local pickup, newest first), skips ads and listings already in CCG, and adds new ones to the evaluator, which queues them for the `eval` module. See §3.9 |
 | `reverb` | **Shell only** | Future Reverb deal finder: crawl the Reverb API, filter and score against comps, then have headless Claude Code (`claude -p`, on the Claude subscription) evaluate the shortlist and write results back to CCG |
 
 ---
@@ -344,6 +345,50 @@ on its own in about 45 seconds (Opus 5.5, subscription). What the run showed:
   `rate_limit_info.status = "rejected"`, plus `resetsAt` (Unix seconds) and `rateLimitType`
   (for example `five_hour`). The agent stops the run when it sees one.
 - **Read-only built-in tools** (Glob and so on) are blocked as well as the write and shell tools.
+
+---
+
+### 3.9 Marketplace scout (`ccg_agent/modules/scout.py`, `src/agent/scout.ts`)
+
+This is the front end of the eval pipeline: it does what David does by hand on Facebook
+Marketplace and hands the results to the existing intake.
+
+**Searches:** hard-coded in `SCOUT_SEARCHES` in `src/agent/scout.ts`: guitar, gibson guitar,
+fender guitar, kramer guitar, squier guitar, squire guitar, bc rich guitar, b.c. rich guitar,
+schecter guitar, shecter guitar. The misspellings are common seller spellings. **This may become
+a D1 table** (editable in Admin) later.
+
+**A scan (`scout.scan`):**
+1. The agent opens each search at
+   `/marketplace/search/?query=…&sortBy=creation_time_descend&deliveryMethod=local_pick_up` with
+   Facebook's default area for the account, then scrolls 4 times.
+2. It collects cards that link to `/marketplace/item/<id>`. Ads are skipped: they don't link to an
+   item, and show "Ad" where the city would be.
+3. It asks the Worker which IDs are already in `listings`.
+4. It picks new ones round-robin across searches, up to the limit, so "guitar" doesn't crowd out
+   the brand searches.
+5. It submits them through `submitListingUrls`, the same intake as the evaluator's URL box
+   (Apify scrape, then `autoQueueListings`), so they reach the `eval` module.
+
+It's **blind on purpose:** no price or keyword filter yet.
+
+**Listings from Reverb and other sources** should be excluded by the local-pickup filter. If any
+still get through, add a specific skip.
+
+**Triggers:**
+- **"Run scout now"** on Admin > Settings > Agent, with an **"Ignore limits"** option that allows
+  up to 200 new listings.
+- **Automatic scans** every N hours. This is **off by default**: turn it on in Admin > Settings >
+  System > Marketplace scout. The scheduled job is created in `prepareScoutForClaim`.
+
+**Limits:** new listings per scan (10) and per rolling 24 hours (30). The 24-hour count is the sum
+of `result.added` across finished scout jobs. Every added listing also costs an Apify scrape and
+counts against the eval limits.
+
+**Login:** it uses the agent's Facebook browser profile and login, the same as the paused FBM
+module. If Facebook is logged out, the job goes back to the queue with `fb_login_needed`.
+
+**Not yet confirmed live:** the search-URL filters, card parsing on real pages, and scroll loading.
 
 ---
 

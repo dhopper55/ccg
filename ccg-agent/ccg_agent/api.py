@@ -58,6 +58,18 @@ class AgentApi:
     def send_logs(self, entries: list[dict[str, Any]]) -> None:
         self._post("/api/agent/logs", {"entries": entries})
 
+    def scout_config(self, job_id: str) -> dict[str, Any]:
+        return self._post("/api/agent/scout/config", {"jobId": job_id})
+
+    def scout_known(self, job_id: str, ids: list[str]) -> list[str]:
+        known: list[str] = []
+        for i in range(0, len(ids), 500):
+            known += self._post("/api/agent/scout/known", {"jobId": job_id, "ids": ids[i:i + 500]}).get("known") or []
+        return known
+
+    def scout_submit(self, job_id: str, ids: list[str]) -> dict[str, Any]:
+        return self._post("/api/agent/scout/submit", {"jobId": job_id, "ids": ids})
+
     def eval_config(self) -> dict[str, Any]:
         """{queued, deep, model, maxItems, timeoutMinutes} for the next eval run."""
         return self._post("/api/agent/eval/config", {})

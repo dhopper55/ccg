@@ -3,11 +3,13 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   MenuItem,
   Paper,
   Stack,
@@ -147,6 +149,7 @@ export default function CcgAgent() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [jobFilter, setJobFilter] = useState('');
+  const [scoutIgnoreLimits, setScoutIgnoreLimits] = useState(false);
   const [logInstance, setLogInstance] = useState('');
   const [desiredRef, setDesiredRef] = useState('');
   const [refDirty, setRefDirty] = useState(false);
@@ -506,6 +509,29 @@ export default function CcgAgent() {
                 </MenuItem>
               ))}
             </TextField>
+            <Button
+              variant="contained"
+              disabled={busy}
+              onClick={() =>
+                void run(
+                  () => post('/api/admin-v2/agent/scout/run', { ignoreLimits: scoutIgnoreLimits }),
+                  scoutIgnoreLimits ? 'Scout scan queued (limits ignored).' : 'Scout scan queued.',
+                )
+              }
+            >
+              Run scout now
+            </Button>
+            <FormControlLabel
+              sx={{ mr: 1 }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={scoutIgnoreLimits}
+                  onChange={(event) => setScoutIgnoreLimits(event.target.checked)}
+                />
+              }
+              label="Ignore limits"
+            />
             <Button
               variant="outlined"
               disabled={busy}

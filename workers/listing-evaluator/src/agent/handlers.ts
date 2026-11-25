@@ -9,6 +9,7 @@
 //   POST /api/agent/jobs/:id/screenshot  raw PNG body -> { key } in R2 (shown in Admin)
 //   POST /api/agent/fbm/item             { itemId } -> item data for a held fbm job (see fbm.ts)
 //   POST /api/agent/eval/config          model / item limit / timeout for the next eval run (eval.ts)
+//   POST /api/agent/scout/config|known|submit   Marketplace scout scan steps (scout.ts)
 //   An unknown/deleted key gets 401 { error: 'invalid_key' }; the agent backs off and retries.
 //
 // Admin-facing (admin login, behind requireAuth in index.ts):
@@ -28,10 +29,13 @@
 //   GET  /api/admin-v2/agent/fbm/items/:id/status    latest add/update jobs + out-of-sync warning
 //   GET  /api/admin-v2/agent/screenshot?key=         a job screenshot from R2
 //   GET/POST /api/admin-v2/agent/eval-settings       Claude eval models + limits (Settings > System)
+//   POST /api/admin-v2/agent/scout/run               { ignoreLimits } "Run scout now"
+//   GET/POST /api/admin-v2/agent/scout-settings      Marketplace scout schedule + limits
 
 import type { Env } from '../env.js';
 import { jsonResponse } from '../utils/misc.js';
 import { agentFbmItem, fbmItemStatus, onFbmJobCompleted, queueFbmAdd } from './fbm.js';
+import { agentScoutConfig, agentScoutKnown, agentScoutSubmit, prepareScoutForClaim, queueScoutNow, dbSaveScoutSettings, scoutSettingsResponse } from './scout.js';
 import { agentEvalConfig, dbAgentEvalsLast24h, dbGetEvalSettings, dbSaveEvalSettings, evalSettingsResponse, prepareEvalForClaim } from './eval.js';
 import {
   CLAIM_INTERVAL_SECONDS,
@@ -117,7 +121,7 @@ async function authenticateAgent(request: Request, env: Env): Promise<InstanceRo
   return dbGetInstanceByKey(env, match[1]);
 }
 
-export async function handleAgentApiRequest(request: Request, env: Env, path: string): Promise<Response> {
+export async function handleAgentApiRequest(request: Request, env: Env, path: string, ctx: ExecutionContext): Promise<Response> {
   return wrapErrors(async () => {
     if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
     const instance = await authenticateAgent(request, env);
@@ -125,6 +129,7 @@ export async function handleAgentApiRequest(request: Request, env: Env, path: st
 
     if (path === '/api/agent/heartbeat') return agentHeartbeat(request, env, instance);
     if (path === '/api/agent/eval/config') return json(await agentEvalConfig(env));
+    if (path.startsWith('/api/agent/scout/')) return agentScout(request, env, ctx, instance, path);
     if (path === '/api/agent/fbm/item') {
       const itemId = str((await readJson(request)).itemId, 20);
       if (!itemId || !/^\d+$/.test(itemId)) return json({ error: 'bad_request', message: 'itemId is required.' }, 400);
@@ -190,6 +195,7 @@ async function agentClaim(request: Request, env: Env, instance: InstanceRow): Pr
   const modules = Array.isArray(body.modules)
     ? body.modules.filter((m): m is string => typeof m === 'string' && NAME_RE.test(m)).slice(0, 50)
     : [];
+  if (modules.includes('scout')) await prepareScoutForClaim(env);
   let claimable = modules;
   if (modules.includes('eval') && !(await prepareEvalForClaim(env))) {
     claimable = modules.filter((module) => module !== 'eval'); // daily eval limit reached
@@ -219,6 +225,35 @@ async function agentComplete(request: Request, env: Env, instance: InstanceRow, 
     }
   }
   return json({ ok: true });
+}
+
+async function agentScout(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  instance: InstanceRow,
+  path: string,
+): Promise<Response> {
+  const body = await readJson(request);
+  const jobId = str(body.jobId, 64) ?? '';
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((id): id is string => typeof id === 'string' && /^\d{5,25}$/.test(id)).slice(0, 500)
+    : [];
+  const notHeld = () => json({ error: 'forbidden', message: 'No running scout job with that id on this instance.' }, 403);
+  if (path === '/api/agent/scout/config') {
+    const config = await agentScoutConfig(env, instance, jobId);
+    return config ? json(config) : notHeld();
+  }
+  if (path === '/api/agent/scout/known') {
+    const known = await agentScoutKnown(env, instance, jobId, ids);
+    return known ? json({ known }) : notHeld();
+  }
+  if (path === '/api/agent/scout/submit') {
+    if (ids.length === 0) return json({ accepted: 0, rejected: [] });
+    const submitted = await agentScoutSubmit(env, ctx, instance, jobId, ids);
+    return submitted ? json(submitted) : notHeld();
+  }
+  return json({ error: 'not_found' }, 404);
 }
 
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
@@ -373,6 +408,19 @@ export async function handleAgentAdminRequest(request: Request, env: Env, path: 
       const object = await env.CUSTOM_ITEMS_BUCKET.get(key);
       if (!object) return json({ error: 'not_found' }, 404);
       return new Response(object.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=86400' } });
+    }
+
+    if (path === '/api/admin-v2/agent/scout/run' && method === 'POST') {
+      const job = await queueScoutNow(env, (await readJson(request)).ignoreLimits === true, owner);
+      return json({ job: serializeJob(job) });
+    }
+    if (path === '/api/admin-v2/agent/scout-settings') {
+      if (method === 'GET') return json(await scoutSettingsResponse(env));
+      if (method === 'POST') {
+        const problem = await dbSaveScoutSettings(env, await readJson(request));
+        if (problem) return json({ error: 'bad_request', message: problem }, 400);
+        return json(await scoutSettingsResponse(env));
+      }
     }
 
     if (path === '/api/admin-v2/agent/eval-settings') {

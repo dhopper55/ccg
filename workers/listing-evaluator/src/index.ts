@@ -393,7 +393,7 @@ export default {
 
     // CCG Agent (local always-on tool) authenticates with its own per-instance key, not an admin session.
     if (isAgentApiPath(path)) {
-      return handleAgentApiRequest(request, env, path);
+      return handleAgentApiRequest(request, env, path, ctx);
     }
 
     // Gear Exchange webhooks authenticate with their own bearer token, not an admin session.
