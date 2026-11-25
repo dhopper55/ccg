@@ -112,8 +112,8 @@ function ScoreDot({ name, score }: { name: string; score: number }) {
         aria-label={`${name} score: ${meta.label}`}
         sx={{
           display: 'inline-block',
-          width: 14,
-          height: 14,
+          width: 28,
+          height: 28,
           borderRadius: '50%',
           bgcolor: meta.color,
           flexShrink: 0,
