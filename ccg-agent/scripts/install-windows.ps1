@@ -6,7 +6,7 @@ Prerequisites (install once, then open a NEW PowerShell window):
   winget install --id Python.Python.3.13 -e
 
 Run (copy the key from Admin > CCG Agent when you create the instance):
-  powershell -ExecutionPolicy Bypass -File install-windows.ps1 -Key ccga_xxx -Ref ccg-agent-foundation
+  powershell -ExecutionPolicy Bypass -File install-windows.ps1 -Key ccga_xxx
 
 What it does:
   1. Sparse-clones the CCG repo (only the ccg-agent folder) to $RepoDir. Git Credential Manager

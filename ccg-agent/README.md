@@ -75,9 +75,9 @@ A direct run like this never self-updates (Admin shows it as "dev run"), so loca
 3. In Admin > CCG Agent, **Add instance** "Home PC" and copy its key.
 4. Download `scripts/install-windows.ps1` from GitHub and run:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File install-windows.ps1 -Key ccga_... -Ref ccg-agent-foundation
+   powershell -ExecutionPolicy Bypass -File install-windows.ps1 -Key ccga_...
    ```
-   (Use `-Ref main` once this is merged.) It sparse-clones only `ccg-agent/` into `%USERPROFILE%\ccg`,
+   It sparse-clones only `ccg-agent/` into `%USERPROFILE%\ccg`,
    stores the key as a user environment variable, and registers a **CCG Agent** scheduled task
    that starts `launcher.py` at logon in a visible console window.
 5. Back in Admin, the instance appears within a minute. Click **Activate**, then **Send test ping**.
