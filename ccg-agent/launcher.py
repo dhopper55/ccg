@@ -62,7 +62,27 @@ def run_agent() -> int:
         raise
 
 
+def disable_quick_edit() -> None:
+    """Windows console: a click in the window starts a text selection (QuickEdit) that pauses
+    every write to the console until Esc, which freezes the agent, heartbeats included. Turn it
+    off for this console; the agent shares it. Best effort, no-op elsewhere."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            ENABLE_QUICK_EDIT_MODE, ENABLE_EXTENDED_FLAGS = 0x0040, 0x0080
+            kernel32.SetConsoleMode(handle, (mode.value & ~ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS)
+    except Exception:
+        pass
+
+
 def main() -> int:
+    disable_quick_edit()
     say(f"Starting CCG Agent launcher in {AGENT_DIR}")
     backoff = 15
     needs_install = True
