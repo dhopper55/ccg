@@ -79,6 +79,7 @@ import {
   handleInventoryFbRemove,
   handleInventoryFbMarkSold,
   handleInventoryFbExclude,
+  handleInventoryFbGroups,
   handleInventoryFbInclude,
   handleInventoryReverbDebug,
   handleReverbShippingProfiles,
@@ -1450,6 +1451,11 @@ export default {
 
     if (path.endsWith('/fb-mark-sold') && path.startsWith('/api/inventory/') && request.method === 'POST') {
       const response = await handleInventoryFbMarkSold(request, path, env);
+      return withCors(response, request, env);
+    }
+
+    if (path.endsWith('/fb-groups') && path.startsWith('/api/inventory/') && request.method === 'POST') {
+      const response = await handleInventoryFbGroups(request, path, env);
       return withCors(response, request, env);
     }
 

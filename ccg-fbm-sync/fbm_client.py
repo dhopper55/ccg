@@ -728,7 +728,9 @@ MUSIC_GROUPS = [
     "COLORADO MUSIC GEAR BUY SELL TRADE",
 ]
 GENERAL_GROUPS = [
-    "Lakewood, CO Online Yard Sale",
+    # Full name "Lakewood, CO Online Yard Sale - Buy Sell Trade" was never matched (2026-11-27);
+    # "Lakewood" alone is unique in the list.
+    "Lakewood",
     "Buy, Sell, and Trade (Northglenn, Thornton",
     "Denver Marketplace",
     "Parker Classifieds",
@@ -746,7 +748,11 @@ def _heading_visible(page, text: str) -> bool:
 
 def _group_pattern(name: str) -> re.Pattern:
     # Case-insensitive, any whitespace (long names wrap onto two lines).
-    return re.compile(r"\s+".join(re.escape(word) for word in name.split()), re.I)
+    # "/" must be escaped too: Playwright sends the regex to the page as /source/flags, so a bare
+    # slash (e.g. "Buy/sell/swap") ends it early and the selector fails to parse (2026-11-27).
+    return re.compile(
+        r"\s+".join(re.escape(word).replace("/", "\\/") for word in name.split()), re.I
+    )
 
 
 def _find_group_checkbox(page, name: str):
@@ -759,10 +765,31 @@ def _find_group_checkbox(page, name: str):
         if box.count() > 0:
             return box.first
         # Not rendered yet: scroll the left panel (where the group list lives) and retry.
-        page.mouse.move(300, 700)
+        page.mouse.move(180, 400)
         page.mouse.wheel(0, 500)
         page.wait_for_timeout(600)
     return None
+
+
+def _toggle_group(page, box, want_on: bool) -> bool:
+    """Clicks a group row until aria-checked matches. First the row itself, then (2026-11-27: a
+    row click didn't take) the checkbox square at the row's right edge. Polls up to 4s each."""
+    def settled() -> bool:
+        for _ in range(8):
+            page.wait_for_timeout(500)
+            if (box.get_attribute("aria-checked") == "true") == want_on:
+                return True
+        return False
+
+    box.click(timeout=5000)
+    if settled():
+        return True
+    size = box.bounding_box()
+    if size:
+        box.click(position={"x": size["width"] - 20, "y": size["height"] / 2}, timeout=5000)
+        if settled():
+            return True
+    return False
 
 
 def _set_groups(page, wanted: list[str]) -> tuple[list[str], list[str]]:
@@ -773,7 +800,7 @@ def _set_groups(page, wanted: list[str]) -> tuple[list[str], list[str]]:
     # Untick first, then tick — each pass scrolls back to the top.
     for want_on, names in ((False, [g for g in ALL_KNOWN_GROUPS if g not in wanted]), (True, wanted)):
         for name in names:
-            page.mouse.move(300, 700)
+            page.mouse.move(180, 400)
             page.mouse.wheel(0, -5000)
             page.wait_for_timeout(400)
             box = _find_group_checkbox(page, name)
@@ -783,11 +810,8 @@ def _set_groups(page, wanted: list[str]) -> tuple[list[str], list[str]]:
                 continue
             box.scroll_into_view_if_needed()
             is_on = box.get_attribute("aria-checked") == "true"
-            if is_on != want_on:
-                box.click(timeout=5000)
-                page.wait_for_timeout(800)
-                if (box.get_attribute("aria-checked") == "true") != want_on:
-                    raise RuntimeError(f"clicked group '{name}' but it didn't {'tick' if want_on else 'untick'}")
+            if is_on != want_on and not _toggle_group(page, box, want_on):
+                raise RuntimeError(f"clicked group '{name}' but it didn't {'tick' if want_on else 'untick'}")
             if want_on:
                 ticked.append(name)
     return ticked, not_found
@@ -914,7 +938,7 @@ def create_draft_listing(
     # David 2026-11-26: no FB shipping at $500 or more.
     if use_shipping and float(price or 0) >= FB_MAX_SHIPPING_PRICE:
         print(
-            f"  No FB shipping at ${FB_MAX_SHIPPING_PRICE} or more — drafting as local pickup only "
+            f"  No FB shipping at ${FB_MAX_SHIPPING_PRICE} or more — listing as local pickup only "
             "(CCG's shipping settings are unchanged)."
         )
         use_shipping = False

@@ -6,7 +6,7 @@ import { sanitizePatternLookupHtml } from '../utils/html.js';
 import { normalizeInventoryImageEntries, INVENTORY_MAX_IMAGES } from '../utils/image.js';
 import { dbCreateInventoryItems, dbUpdateInventoryById, dbReplaceInventoryImagesByItemIds, dbSetInventorySoldAvailability, dbDeactivateInventoryItemById, dbSetInventoryReverbListingId, dbSetInventoryFbListingId, dbSetInventoryFbSyncState, dbMarkInventorySoldFromFbm, dbApplyReverbShippingLabelCost, generateUniqueCcgNumber, dbReplaceInventoryTagsByItemIds, normalizeInventoryTagsInput } from './db-write.js';
 import { ensureInventoryHostedImageUrls } from './db-images.js';
-import { dbUpsertInventoryAddtl } from './addtl.js';
+import { dbUpsertInventoryAddtl, dbSetInventoryFbGroups } from './addtl.js';
 import { dbGetGxLinkForItem } from '../gx/db.js';
 import { syncGxListingOnSave } from '../gx/handlers.js';
 import { queueFbmUpdateAfterSave } from '../agent/fbm.js';
@@ -1202,6 +1202,27 @@ export async function handleInventoryFbExclude(_request: Request, path: string, 
   const ok = await dbSetInventoryFbSyncState(recordId, 'excluded', env);
   if (!ok) return jsonResponse({ message: 'Failed to exclude the item from FBM sync.' }, 500);
   return jsonResponse({ ok: true, fbSyncState: 'excluded' });
+}
+
+// Used by ccg-fbm-sync/add_all.py: records which FB groups the item was posted to.
+// Body: { fbGroups: 1 | 2 | 3 | 4 } — 1 music, 2 general, 3 all, 4 none.
+export async function handleInventoryFbGroups(request: Request, path: string, env: Env): Promise<Response> {
+  const parts = path.split('/').filter(Boolean);
+  const actionIndex = parts.indexOf('fb-groups');
+  const recordId = actionIndex > 0 ? parts[actionIndex - 1] : '';
+  if (!recordId) return jsonResponse({ message: 'Missing inventory ID.' }, 400);
+  let body: Record<string, unknown> = {};
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ message: 'Invalid JSON payload.' }, 400);
+  }
+  const fbGroups = Number(body.fbGroups);
+  if (![1, 2, 3, 4].includes(fbGroups)) return jsonResponse({ message: 'fbGroups must be 1, 2, 3 or 4.' }, 400);
+  if (!(await dbGetInventoryItem(recordId, env))) return jsonResponse({ message: 'Inventory item not found.' }, 404);
+  const ok = await dbSetInventoryFbGroups(Number.parseInt(recordId, 10), fbGroups, env);
+  if (!ok) return jsonResponse({ message: 'Failed to save fb_groups.' }, 500);
+  return jsonResponse({ ok: true, fbGroups });
 }
 
 // Inverse of handleInventoryFbExclude — clears fb_sync_state back to null. Used by the

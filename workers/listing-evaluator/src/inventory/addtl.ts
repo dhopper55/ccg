@@ -7,6 +7,7 @@ export type InventoryItemAddtlRow = {
   inventory_item_id: number;
   fixed_shipping_amount: number;
   meta_store: number;
+  fb_groups?: number | null;
 };
 
 export async function dbUpsertInventoryAddtl(
@@ -31,10 +32,28 @@ export async function dbUpsertInventoryAddtl(
   }
 }
 
+// fb_groups: 1 music, 2 general, 3 all, 4 none (d1-add-fb-groups.sql). Only touches fb_groups.
+export async function dbSetInventoryFbGroups(inventoryItemId: number, fbGroups: number, env: Env): Promise<boolean> {
+  if (!Number.isFinite(inventoryItemId)) return false;
+  try {
+    await env.DB.prepare(
+      `INSERT INTO ccg_inventory_items_addtl (inventory_item_id, fb_groups, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(inventory_item_id) DO UPDATE SET
+         fb_groups = excluded.fb_groups,
+         updated_at = CURRENT_TIMESTAMP`
+    ).bind(inventoryItemId, fbGroups).run();
+    return true;
+  } catch (error) {
+    console.error('Inventory fb_groups update failed', { error, inventoryItemId });
+    return false;
+  }
+}
+
 export async function dbGetInventoryAddtl(inventoryItemId: number, env: Env): Promise<InventoryItemAddtlRow | null> {
   if (!Number.isFinite(inventoryItemId)) return null;
   const row = await env.DB.prepare(
-    `SELECT inventory_item_id, fixed_shipping_amount, meta_store
+    `SELECT inventory_item_id, fixed_shipping_amount, meta_store, fb_groups
      FROM ccg_inventory_items_addtl
      WHERE inventory_item_id = ?`
   ).bind(inventoryItemId).first<InventoryItemAddtlRow>();
@@ -62,7 +81,7 @@ export async function dbGetInventoryAddtlForIds(
     const chunk = ids.slice(offset, offset + SQL_VARIABLE_CHUNK_SIZE);
     const placeholders = chunk.map(() => '?').join(', ');
     const result = await env.DB.prepare(
-      `SELECT inventory_item_id, fixed_shipping_amount, meta_store
+      `SELECT inventory_item_id, fixed_shipping_amount, meta_store, fb_groups
        FROM ccg_inventory_items_addtl
        WHERE inventory_item_id IN (${placeholders})`
     ).bind(...chunk).all<InventoryItemAddtlRow>();

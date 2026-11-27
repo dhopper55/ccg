@@ -85,6 +85,16 @@ class CCGClient:
             raise RuntimeError(f"reframe failed: {resp.status_code} {resp.text[:300]}")
         return resp.json()
 
+    def set_fb_groups(self, item_id, fb_groups: int) -> dict:
+        """Records which FB groups the item went to: 1 music, 2 general, 3 all, 4 none."""
+        self._ensure_login()
+        resp = self.session.post(
+            f"{self.base_url}/api/inventory/{item_id}/fb-groups", json={"fbGroups": fb_groups}, timeout=15
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"fb-groups failed for item {item_id}: {resp.status_code} {resp.text[:200]}")
+        return resp.json()
+
     def get_site_description(self, item_id) -> str | None:
         """The item's description exactly as the public site shows it (GET
         /api/shop/products/:id, no login): sale description + Serial #/Year/Finish lines + the

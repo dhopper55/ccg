@@ -15,7 +15,8 @@ Walks every for-sale CCG item that has no fb_listing_id and that you haven't alr
   5. Saves to CCG with a normal save — which updates the EXISTING Reverb / GX listings in place
      (title, description, price, shipping); nothing is ended or relisted there. If Reverb or GX
      rejects it, the save is aborted and you choose: retry with the original text, or skip.
-  6. Post to which groups? Music (3) / General (5) / None.
+  6. Post to which groups? 1 Music (3) / 2 General (5) / 3 All (8) / 4 None — saved in CCG as
+     fb_groups after a successful publish.
   7. PUBLISHES on FB (offers off; the chosen groups ticked, every other known group unticked)
      with the CURRENT title and description, and links its id in CCG — so a YES is never asked
      again either. Group lists: MUSIC_GROUPS / GENERAL_GROUPS in fbm_client.py.
@@ -65,10 +66,15 @@ def _reframe_step(client: CCGClient, title: str, description: str) -> tuple[str,
     """Returns the (title, description) to use: the reframed pair or the original."""
     while True:
         console.print("  Reframing...")
-        try:
-            new = client.reframe(title, description)
-        except Exception as error:
-            console.print(f"  [red]Reframe failed: {error}[/red]")
+        new = None
+        for attempt in range(3):  # the AI call 502s now and then; a retry almost always works
+            try:
+                new = client.reframe(title, description)
+                break
+            except Exception as error:
+                last_error = error
+        if new is None:
+            console.print(f"  [red]Reframe failed 3 times: {last_error}[/red]")
             if _choose("Reframe didn't work.", ["Try again", "Keep original"]) == "Try again":
                 continue
             return title, description
@@ -96,23 +102,23 @@ def _save(client: CCGClient, item_id, record: dict) -> bool:
         return False
 
 
-def _ask_groups() -> list[str]:
-    choice = _choose(
-        "Post to which groups?",
-        [
-            f"Music groups ({len(MUSIC_GROUPS)})",
-            f"General groups ({len(GENERAL_GROUPS)})",
-            "No groups (Marketplace only)",
-        ],
-    )
-    if choice.startswith("Music"):
-        return list(MUSIC_GROUPS)
-    if choice.startswith("General"):
-        return list(GENERAL_GROUPS)
-    return []
+# Stored in CCG as fb_groups (ccg_inventory_items_addtl): 1 music, 2 general, 3 all, 4 none.
+FB_GROUP_CHOICES = {
+    1: ("Music groups", MUSIC_GROUPS),
+    2: ("General groups", GENERAL_GROUPS),
+    3: ("All groups (music + general)", MUSIC_GROUPS + GENERAL_GROUPS),
+    4: ("No groups (Marketplace only)", []),
+}
 
 
-def _publish_on_fb(client: CCGClient, item_id, record: dict, footer: str | None, groups: list[str]) -> bool:
+def _ask_groups() -> int:
+    labels = [f"{label} ({len(groups)})" if groups else label for label, groups in FB_GROUP_CHOICES.values()]
+    choice = _choose("Post to which groups?", labels)
+    return labels.index(choice) + 1
+
+
+def _publish_on_fb(client: CCGClient, item_id, record: dict, footer: str | None, fb_groups: int) -> bool:
+    groups = list(FB_GROUP_CHOICES[fb_groups][1])
     title = item_title(record)
 
     # Browser opened only around the draft: Playwright's sync API keeps an asyncio loop running
@@ -165,6 +171,10 @@ def _publish_on_fb(client: CCGClient, item_id, record: dict, footer: str | None,
         )
         return False
     console.print(f"  [green]Published on FB (id {new_listing_id}) and linked.[/green]")
+    try:
+        client.set_fb_groups(item_id, fb_groups)
+    except Exception as error:
+        console.print(f"  [yellow]Couldn't save the group choice ({fb_groups}) in CCG: {error}[/yellow]")
     return True
 
 
@@ -240,8 +250,8 @@ def run(only_id: str | None = None) -> None:
                 console.print("  CCG saved.")
         # else: nothing changed — no save, Reverb/GX untouched.
 
-        groups = _ask_groups()
-        if _publish_on_fb(client, item_id, client.get_item(item_id), footer, groups):
+        fb_groups = _ask_groups()
+        if _publish_on_fb(client, item_id, client.get_item(item_id), footer, fb_groups):
             listed += 1
 
     console.print("\n[bold]This session[/bold]")
