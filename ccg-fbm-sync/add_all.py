@@ -1,21 +1,29 @@
-"""Add All mode — bulk re-list every for-sale CCG item on Facebook Marketplace. See
-ARCHITECTURE.md. Meant to run after delete_all.py, but defensively skips any item that
-already has an fb_listing_id (safe to re-run if a previous pass was interrupted).
+"""Re-list on Facebook Marketplace, one CCG item at a time, at your own pace. See ARCHITECTURE.md.
 
-For each for-sale, unlinked CCG item: prints its current price/shipping/tax facts, asks
-whether to list it at all, then walks you through each editable field (Sale Price, Regular
-Price, Sales Tax Included, Allow Shipping, Shipping Price) with the current value pre-filled
-so Enter keeps it. CCG is updated with whatever you land on regardless of whether you go on
-to draft it on Facebook. Only drafts on FB (never publishes) — same safety model as
-approve.py's to_post flow. Run with:
+Walks every for-sale CCG item that has no fb_listing_id and that you haven't already said NO to
+(regardless of Reverb / Gear Exchange status). For each one:
+
+  1. Shows the item (title, price, shipping, Reverb/GX status, admin link).
+  2. List on FBM?  YES / NO / Quit.
+     - NO  -> remembered in CCG (fb_sync_state = "excluded"); never asked again.
+              Undo with --undo-no <CCG number>.
+     - YES -> 3..6 below.
+  3. AI reframe of the title + description (same as the item page's Reframe button). You see
+     old vs new and pick Accept / Regenerate / Keep original.
+  4. Confirm price / tax / shipping (Enter keeps each).
+  5. Saves to CCG with a normal save — which updates the EXISTING Reverb / GX listings in place
+     (title, description, price, shipping); nothing is ended or relisted there. If Reverb or GX
+     rejects it, the save is aborted and you choose: retry with the original text, or skip.
+  6. Creates the FB listing as a DRAFT (never publishes) with the CURRENT title and
+     description, and links its id in
+     CCG — so a YES is never asked again either. Publish it from Marketplace > Drafts.
+     FB description = the item's sale description + Serial/Year/Finish lines, NO canned footer.
+
+Ctrl-C any time; the next run picks up where you left off.
 
     ./venv/bin/python add_all.py
-
-Test mode — scope the run down to one CCG item (matches its internal id or its CCG-XXXXXX
-number), to verify the field-editing flow and create_draft_listing()'s shipping fields
-against a single real item before trusting either at scale:
-
-    ./venv/bin/python add_all.py --ccg-id 123456
+    ./venv/bin/python add_all.py --ccg-id 123456      # just this one item
+    ./venv/bin/python add_all.py --undo-no 123456     # forget a NO so it's asked again
 """
 from __future__ import annotations
 
@@ -26,25 +34,25 @@ from playwright.sync_api import sync_playwright
 from rich.console import Console
 
 from ccg_client import CCGClient
-from fbm_client import create_draft_listing, open_draft_browser
+from fbm_client import create_draft_listing, fb_description, open_draft_browser
 from reconcile import item_title
 
 console = Console()
 
 
-def _ask_yes_no(prompt: str) -> bool:
+def _choose(prompt: str, options: list[str]) -> str:
     console.print(f"\n[bold]{prompt}[/bold]")
-    console.print("  1. Yes")
-    console.print("  2. No")
+    for n, option in enumerate(options, 1):
+        console.print(f"  {n}. {option}")
     while True:
         choice = input("> ").strip()
-        if choice in ("1", "2"):
-            return choice == "1"
-        console.print("Enter 1 or 2.")
+        if choice.isdigit() and 1 <= int(choice) <= len(options):
+            return options[int(choice) - 1]
+        console.print(f"Enter 1-{len(options)}.")
 
 
 def _ask_money(label: str, current: float) -> float:
-    answer = questionary.text(f"New {label}:", default=f"{current:.2f}").ask()
+    answer = questionary.text(f"{label}:", default=f"{current:.2f}").ask()
     if answer is None:
         return current
     try:
@@ -54,123 +62,197 @@ def _ask_money(label: str, current: float) -> float:
         return current
 
 
+def _ccg_number(item: dict) -> str:
+    return str(item.get("ccgNumber") or item["id"]).upper().removeprefix("CCG-")
 
-def run_add_all(only_id: str | None = None) -> None:
+
+def _find(items: list[dict], wanted: str) -> list[dict]:
+    wanted = wanted.strip().upper().removeprefix("CCG-")
+    return [i for i in items if str(i["id"]) == wanted or _ccg_number(i) == wanted]
+
+
+def _reframe_step(client: CCGClient, title: str, description: str) -> tuple[str, str]:
+    """Returns the (title, description) to use: the reframed pair or the original."""
+    while True:
+        console.print("  Reframing...")
+        try:
+            new = client.reframe(title, description)
+        except Exception as error:
+            console.print(f"  [red]Reframe failed: {error}[/red]")
+            if _choose("Reframe didn't work.", ["Try again", "Keep original"]) == "Try again":
+                continue
+            return title, description
+
+        console.print("\n[bold]OLD title:[/bold] " + title)
+        console.print("[bold green]NEW title:[/bold green] " + new["title"])
+        console.print("\n[bold]OLD description:[/bold]\n" + description)
+        console.print("\n[bold green]NEW description:[/bold green]\n" + new["description"])
+        choice = _choose(
+            "Use the new title + description? (this also goes to Reverb / GX if listed there)",
+            ["Accept", "Regenerate", "Keep original"],
+        )
+        if choice == "Accept":
+            return new["title"], new["description"]
+        if choice == "Keep original":
+            return title, description
+
+
+def _save(client: CCGClient, item_id, record: dict) -> bool:
+    try:
+        client.update_item(item_id, record)
+        return True
+    except Exception as error:
+        console.print(f"  [red]Save failed (CCG unchanged): {error}[/red]")
+        return False
+
+
+def _draft_on_fb(client: CCGClient, item_id, record: dict, footer: str | None) -> bool:
+    title = item_title(record)
+
+    # Browser opened only around the draft: Playwright's sync API keeps an asyncio loop running
+    # while open, which breaks questionary's prompts.
+    playwright = sync_playwright().start()
+    browser, context = open_draft_browser(playwright)
+    try:
+        new_listing_id = create_draft_listing(
+            context,
+            title=title,
+            price=float(record.get("salePrice") or 0),
+            condition=record.get("condition") or "",
+            description=record.get("saleDescription") or "",
+            image_urls=client.get_public_image_urls(item_id),
+            allow_shipping=bool(record.get("allowShipping")),
+            shipping_cost=float(record.get("fixedShippingAmount") or 0),
+            footer=footer,
+            full_description=fb_description(record),
+        )
+    finally:
+        browser.close()
+        playwright.stop()
+
+    if not new_listing_id:
+        console.print("  [red]FB draft not saved — see the warning above. It'll come up again next run.[/red]")
+        return False
+    try:
+        client.set_fb_listing_id(item_id, new_listing_id)
+    except Exception as error:
+        console.print(
+            f"  [red]Draft saved on FB (id {new_listing_id}) but linking it in CCG failed: {error}[/red]\n"
+            f"  Set FB Listing ID = {new_listing_id} on the item by hand, or the next run will "
+            "offer it again (duplicate draft)."
+        )
+        return False
+    console.print(f"  [green]Drafted on FB (id {new_listing_id}) and linked. Publish it from Marketplace > Drafts.[/green]")
+    return True
+
+
+def run(only_id: str | None = None) -> None:
     client = CCGClient()
-
     footer = client.get_sale_description_postfix()
-    console.print(
-        "Using the site's live description footer." if footer
-        else "[yellow]Couldn't fetch the site's footer — falling back to the built-in copy.[/yellow]"
-    )
 
     console.print("[bold]Fetching CCG inventory...[/bold]")
-    ccg_items = client.get_all_inventory()
-    candidates = [i for i in ccg_items if i.get("forSale") and not i.get("fbListingId")]
-    console.print(f"  {len(candidates)} for-sale item(s) not yet linked to FB out of {len(ccg_items)} total.\n")
+    all_items = client.get_all_inventory()
+    candidates = [
+        i for i in all_items
+        if i.get("forSale") and not i.get("isSold") and not i.get("fbListingId")
+        and i.get("fbSyncState") != "excluded"
+    ]
+    said_no = sum(1 for i in all_items if i.get("forSale") and i.get("fbSyncState") == "excluded")
+    console.print(f"  {len(candidates)} for-sale item(s) still to decide ({said_no} already answered NO).")
 
     if only_id:
-        wanted = only_id.strip().upper().removeprefix("CCG-")
-        candidates = [
-            i for i in candidates
-            if str(i["id"]) == wanted or str(i.get("ccgNumber") or "").upper().removeprefix("CCG-") == wanted
-        ]
+        candidates = _find(candidates, only_id)
         if not candidates:
-            console.print(f"No for-sale, unlinked CCG item found matching id {only_id} — nothing to do.")
+            console.print(f"No undecided for-sale item matches {only_id}.")
             return
-        console.print(f"[bold]Test mode: scoped to CCG item {only_id} only.[/bold]\n")
 
-    listed = skipped = drafts_failed = 0
-    for item in candidates:
-        ccg_number = str(item.get("ccgNumber") or item["id"]).upper().removeprefix("CCG-")
-        title = item_title(item)
-        sale_price = float(item.get("salePrice") or 0)
-        regular_price = float(item.get("regularPrice") or 0)
-        sales_tax_included = bool(item.get("salesTaxIncluded"))
-        allow_shipping = bool(item.get("allowShipping"))
-        shipping_cost = float(item.get("fixedShippingAmount") or 0)
-        unit_cost = item.get("unitPurchasePrice")
+    base = client.base_url
+    listed = said_no_now = 0
+    for n, item in enumerate(candidates, 1):
+        item_id = item["id"]
+        on_reverb = "yes" if item.get("reverbListingId") else "no"
+        on_gx = "yes" if item.get("gxListingId") and item.get("gxStatus") != "sold" else "no"
+        console.rule(f"[{n}/{len(candidates)}]  CCG-{_ccg_number(item)}")
+        console.print(f"[bold]{item_title(item)}[/bold]")
+        console.print(
+            f"  Price ${float(item.get('salePrice') or 0):.2f}"
+            f"  |  Ships: {'$%.2f' % float(item.get('fixedShippingAmount') or 0) if item.get('allowShipping') else 'no'}"
+            f"  |  Reverb: {on_reverb}  |  GX: {on_gx}"
+        )
+        console.print(f"  {base}/admin/inventory-item?id={item_id}")
 
-        console.print(f"\n[bold]Item 'CCG-{ccg_number}' ({title}) is for sale on CCG and not FBM.[/bold]")
-        console.print(f"  Unit cost: ${unit_cost if unit_cost is not None else 0:.2f}")
-        console.print(f"  Sale price: ${sale_price:.2f}")
-        console.print(f"  Regular price: ${regular_price:.2f}")
-        console.print(f"  Sales tax included: {sales_tax_included}")
-        console.print(f"  Allow shipping: {allow_shipping}")
-        console.print(f"  Shipping price: ${shipping_cost:.2f}")
-
-        if not _ask_yes_no("Do you want to list on FBM?"):
-            skipped += 1
-            continue
-
-        sale_price = _ask_money("Sale Price", sale_price)
-        regular_price = _ask_money("Regular Price", regular_price)
-        sales_tax_included = questionary.confirm("Sales tax included?", default=sales_tax_included).ask()
-        allow_shipping = questionary.confirm("Allow shipping?", default=allow_shipping).ask()
-        if allow_shipping:
-            shipping_cost = _ask_money("Shipping Price", shipping_cost)
-
-        updated_record = dict(client.get_item(item["id"]))
-        updated_record["salePrice"] = sale_price
-        updated_record["regularPrice"] = regular_price
-        updated_record["salesTaxIncluded"] = sales_tax_included
-        updated_record["allowShipping"] = allow_shipping
-        updated_record["fixedShippingAmount"] = shipping_cost
-        client.update_item(item["id"], updated_record)
-        console.print("  CCG updated.")
-
-        if not _ask_yes_no("List on FBM now?"):
-            continue
-
-        # The browser is opened only around the draft itself: Playwright's sync API keeps an
-        # asyncio loop running while open, which makes questionary's prompts crash with
-        # "asyncio.run() cannot be called from a running event loop".
-        playwright = sync_playwright().start()
-        browser, context = open_draft_browser(playwright)
-        try:
-            new_listing_id = create_draft_listing(
-                context,
-                title=title,
-                price=sale_price,
-                condition=item.get("condition") or "",
-                description=item.get("saleDescription") or "",
-                image_urls=client.get_public_image_urls(item["id"]),
-                allow_shipping=allow_shipping,
-                shipping_cost=shipping_cost,
-                footer=footer,
-            )
-        finally:
-            browser.close()
-            playwright.stop()
-        if new_listing_id:
+        choice = _choose("List on FBM?", ["YES", "NO (don't ask again)", "Quit"])
+        if choice == "Quit":
+            break
+        if choice.startswith("NO"):
             try:
-                client.set_fb_listing_id(item["id"], new_listing_id)
+                client.exclude_from_fbm(item_id)
+                said_no_now += 1
+                console.print("  Remembered — won't ask again.")
             except Exception as error:
-                console.print(
-                    f"  [red]Draft saved on FB (id {new_listing_id}) but linking it in CCG failed: {error}[/red]\n"
-                    f"  Link it manually (fb_listing_id = {new_listing_id}) before re-running, or the "
-                    "re-run will create a duplicate draft."
-                )
-                drafts_failed += 1
-                continue
-            listed += 1
-            console.print(f"  drafted on FB (id {new_listing_id}) and linked.")
-        else:
-            drafts_failed += 1
-            console.print("  draft not saved — see the warning above. CCG values were still saved.")
+                console.print(f"  [red]Couldn't save the NO ({error}) — it'll come up again next run.[/red]")
+            continue
 
-    console.print("\n[bold]Summary[/bold]")
-    console.print(f"  Listed (drafted + linked): {listed}")
-    console.print(f"  Skipped (no / CCG-only): {skipped}")
-    console.print(f"  Draft failed (CCG values saved, FB side needs a retry): {drafts_failed}")
+        # Fresh full record (not the list row from the start of the run).
+        record = dict(client.get_item(item_id))
+        original_title = record.get("saleTitle") or ""
+        original_description = record.get("saleDescription") or ""
+        if original_title and original_description:
+            new_title, new_description = _reframe_step(client, original_title, original_description)
+        else:
+            console.print("  [yellow]No sale title/description to reframe — keeping as is.[/yellow]")
+            new_title, new_description = original_title, original_description
+
+        record["salePrice"] = _ask_money("Sale Price", float(record.get("salePrice") or 0))
+        record["regularPrice"] = _ask_money("Regular Price", float(record.get("regularPrice") or 0))
+        record["salesTaxIncluded"] = questionary.confirm(
+            "Sales tax included?", default=bool(record.get("salesTaxIncluded"))
+        ).ask()
+        record["allowShipping"] = questionary.confirm(
+            "Allow shipping?", default=bool(record.get("allowShipping"))
+        ).ask()
+        if record["allowShipping"]:
+            record["fixedShippingAmount"] = _ask_money(
+                "Shipping Price", float(record.get("fixedShippingAmount") or 0)
+            )
+
+        record["saleTitle"], record["saleDescription"] = new_title, new_description
+        console.print("  Saving to CCG (updates Reverb / GX if listed)...")
+        saved = _save(client, item_id, record)
+        if not saved and (new_title, new_description) != (original_title, original_description):
+            retry = _choose("Save was rejected.", ["Retry with the ORIGINAL title/description", "Skip this item for now"])
+            if retry.startswith("Retry"):
+                record["saleTitle"], record["saleDescription"] = original_title, original_description
+                saved = _save(client, item_id, record)
+        if not saved:
+            console.print("  Skipped — it'll come up again next run.")
+            continue
+        console.print("  CCG saved.")
+
+        if _draft_on_fb(client, item_id, client.get_item(item_id), footer):
+            listed += 1
+
+    console.print("\n[bold]This session[/bold]")
+    console.print(f"  Drafted on FB: {listed}")
+    console.print(f"  Answered NO:   {said_no_now}")
+
+
+def undo_no(ccg_id: str) -> None:
+    client = CCGClient()
+    matches = _find(client.get_all_inventory(), ccg_id)
+    if not matches:
+        console.print(f"No CCG item matches {ccg_id}.")
+        return
+    client.clear_fb_sync_state(matches[0]["id"])
+    console.print(f"CCG-{_ccg_number(matches[0])} will be offered again on the next run.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
-        "--ccg-id",
-        help="Test mode: only process this one CCG item (matches its internal id or its "
-        "CCG-XXXXXX number), instead of every for-sale, unlinked item.",
-    )
+    parser.add_argument("--ccg-id", help="Only this item (internal id or CCG-XXXXXX number).")
+    parser.add_argument("--undo-no", help="Forget a NO for this item so it's offered again.")
     args = parser.parse_args()
-    run_add_all(only_id=args.ccg_id)
+    if args.undo_no:
+        undo_no(args.undo_no)
+    else:
+        run(only_id=args.ccg_id)

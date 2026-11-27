@@ -45,15 +45,17 @@ Ignores CCG entirely on the FB side: deletes **every** currently active FB Marke
 
 Built 2026-09-20, rewritten the same day: always acts on whichever listing is currently first on the selling page (no title or id matching against anything), and reloads the whole page when it runs out of visible listings — exactly how David does it by hand. An earlier version matched listings scraped in Grid view against rows in List view by comparing title text, which silently failed whenever the two views rendered a title differently; that's what made deletes fail inconsistently on a real run. Use `--limit N` to stop after N deletions for a quick test — CCG is only cleaned up after a confirmed full sweep, so test mode doesn't touch CCG.
 
-## Add All mode — bulk re-list every for-sale CCG item
+## Add All mode — re-list on FBM one item at a time
 
 ```
-./venv/bin/python add_all.py
+./venv/bin/python add_all.py                    # walk undecided for-sale items
+./venv/bin/python add_all.py --ccg-id 123456    # just one item
+./venv/bin/python add_all.py --undo-no 123456   # forget a NO
 ```
 
-Meant to run right after `delete_all.py`. Assumes no listings currently exist on FBM (defensively skips any item that already has an `fb_listing_id`, so it's still safe to re-run). Walks every for-sale, unlinked CCG item one at a time: prints its unit cost, sale price, regular price, sales tax included, allow shipping, and shipping price; asks whether to list it; if yes, walks each editable field (unit cost excluded) with the current value pre-filled so Enter keeps it; saves the CCG record regardless of what happens next; then asks whether to draft it on Facebook now. Only **drafts** — same "never auto-publish" safety model as `approve.py`.
+Rewritten 2026-11-26. Walks every for-sale CCG item with no `fb_listing_id` that hasn't been answered NO, regardless of Reverb/GX status. Per item: **YES / NO / Quit**. NO sets `fb_sync_state = "excluded"` (never asked again). YES: AI reframe of title + description (Accept / Regenerate / Keep original) → confirm price/tax/shipping → normal CCG save, which updates the existing Reverb/GX listings in place (if they reject it, retry with original text or skip) → FB **draft** with the current title and the item's sale description + Serial/Year/Finish lines — **no canned footer** (dropped 2026-11-26; boilerplate suspected of hurting engagement) → links the FB id in CCG. Publish from Marketplace > Drafts. Ctrl-C anytime; the next run resumes.
 
-Built 2026-09-20. The shipping-cost fields in `fbm_client.create_draft_listing()`'s Delivery step are **not yet verified against a live listing** — it isn't confirmed Facebook's own form even supports an arbitrary fixed shipping price. Test before a real bulk run (see ARCHITECTURE.md). Use `--ccg-id <id or CCG-XXXXXX number>` to scope a run to exactly one CCG item for this kind of test.
+FB selectors updated 2026-11-26 (row menu "More options for …", menu item "Delete listing").
 
 ## Status
 

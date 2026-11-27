@@ -108,6 +108,24 @@ Fender Acoustic 100 (Acoustic)
 Fender Rumble 100 (Bass)"""
 
 
+def fb_description(record: dict) -> str:
+    """What FB gets as of 2026-11-26: the item's own sale description + its Serial #/Year/Finish
+    lines — NO canned footer (pickup/payment/contact/amp lineup). David thinks the boilerplate
+    is part of why listings were being ignored. `record` is a full CCG record (get_item)."""
+    text = (record.get("saleDescription") or "").strip()
+    details = [
+        f"{label}: {value}"
+        for label, value in (
+            ("Serial #", (record.get("serialNumber") or "").strip()),
+            ("Year", (record.get("yearRange") or "").strip()),
+            ("Finish", (record.get("finish") or "").strip()),
+        )
+        if value and value.lower() != "unknown"
+    ]
+    parts = [p for p in (text, "\n".join(details)) if p]
+    return "\n\n".join(parts) or (record.get("saleTitle") or record.get("title") or "").strip()
+
+
 def build_fbm_description(raw_description: str, footer: str | None = None) -> str:
     """Item text + the site's standard footer. `footer` should be the live value from the
     site's settings (CCGClient.get_sale_description_postfix); FBM_DESCRIPTION_POSTFIX is only
@@ -288,6 +306,21 @@ def _dismiss_popups(page) -> None:
         pass
 
 
+# Per-row 3-dot button. FB renamed it "More actions for <title>" -> "More options for <title>"
+# (found live 2026-11-26: the old selector matched nothing, so Delete All saw an "empty" page).
+# Match both, visible only — each label is rendered twice, once hidden.
+ROW_MENU_SELECTOR = (
+    "[aria-label^='More options for ']:visible, [aria-label^='More actions for ']:visible"
+)
+
+
+def _row_title(row) -> str:
+    label = (row.get_attribute("aria-label") or "").strip()
+    for prefix in ("More options for ", "More actions for "):
+        label = label.removeprefix(prefix)
+    return label.strip() or "(untitled row)"
+
+
 def _delete_row_at(page, index: int) -> tuple[bool, str]:
     """Deletes the row at `index` among CURRENTLY VISIBLE rows on an already-loaded selling
     page — no title/id matching involved in picking what to act on. Returns (True, title) on a
@@ -297,10 +330,10 @@ def _delete_row_at(page, index: int) -> tuple[bool, str]:
     instead of just "something timed out" (found live 2026-09-20: the combined try/except gave
     no way to tell which of the three clicks had failed).
     """
-    all_rows = page.locator("[aria-label^='More actions for ']")
+    all_rows = page.locator(ROW_MENU_SELECTOR)
     before = all_rows.count()
     row = all_rows.nth(index)
-    title = (row.get_attribute("aria-label") or "").removeprefix("More actions for ").strip() or "(untitled row)"
+    title = _row_title(row)
 
     _dismiss_popups(page)
 
@@ -312,13 +345,16 @@ def _delete_row_at(page, index: int) -> tuple[bool, str]:
         page.wait_for_timeout(800)
 
         step = "clicking Delete in the menu"
-        page.get_by_role("menuitem", name="Delete", exact=True).click(timeout=8000)
+        # "Delete" until late 2026, "Delete listing" as of 2026-11-26.
+        page.get_by_role("menuitem", name=re.compile(r"^Delete( listing)?$")).click(timeout=8000)
         page.wait_for_timeout(800)
 
         step = "confirming the delete dialog"
-        page.get_by_role("dialog", name="Delete listing?").get_by_role(
-            "button", name="Delete", exact=True
-        ).click(timeout=8000)
+        # Any visible dialog's Delete / Delete listing button — don't depend on the dialog's
+        # title wording, which FB changes.
+        page.locator("[role='dialog']:visible").get_by_role(
+            "button", name=re.compile(r"^Delete( listing)?$")
+        ).last.click(timeout=8000)
     except Exception as error:
         first_line = str(error).strip().split("\n")[0]
         print(f"  Couldn't delete '{title}' — failed while {step}: {first_line}")
@@ -369,7 +405,7 @@ def delete_everything_on_selling_page(context, limit: int | None = None) -> tupl
 
         empty_reloads = 0
         while limit is None or deleted < limit:
-            all_rows = page.locator("[aria-label^='More actions for ']")
+            all_rows = page.locator(ROW_MENU_SELECTOR)
             total = all_rows.count()
 
             if total == 0:
@@ -386,9 +422,7 @@ def delete_everything_on_selling_page(context, limit: int | None = None) -> tupl
             # Pick the first currently-visible row that hasn't already exhausted its retries.
             index = None
             for i in range(total):
-                candidate_title = (
-                    all_rows.nth(i).get_attribute("aria-label") or ""
-                ).removeprefix("More actions for ").strip() or "(untitled row)"
+                candidate_title = _row_title(all_rows.nth(i))
                 if failure_counts.get(candidate_title, 0) < MAX_ATTEMPTS_PER_TITLE:
                     index = i
                     break
@@ -695,6 +729,7 @@ def create_draft_listing(
     allow_shipping: bool = False,
     shipping_cost=None,
     footer: str | None = None,
+    full_description: str | None = None,
 ) -> str | None:
     """Fills Facebook's real "Item for sale" create-listing form — photos, title, price,
     category (fixed at Musical Instruments), condition, description — advances to the
@@ -772,7 +807,8 @@ def create_draft_listing(
     textarea = page.locator("textarea").first
     textarea.scroll_into_view_if_needed()
     textarea.click()
-    textarea.fill(build_fbm_description(description, footer))
+    # full_description = the site's finished text (CCGClient.get_site_description), used as-is.
+    textarea.fill(full_description or build_fbm_description(description, footer))
     page.wait_for_timeout(800)
 
     # Next stays aria-disabled until every required field is valid and photo uploads finish

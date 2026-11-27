@@ -71,6 +71,35 @@ class CCGClient:
         except (requests.RequestException, ValueError):
             return None
 
+    def reframe(self, title: str, description: str) -> dict:
+        """Same AI rewrite as the item page's Reframe button (POST
+        /api/admin-v2/inventory/reframe): same facts, new wording. Returns {title, description}.
+        Saves nothing."""
+        self._ensure_login()
+        resp = self.session.post(
+            f"{self.base_url}/api/admin-v2/inventory/reframe",
+            json={"title": title, "description": description},
+            timeout=90,
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"reframe failed: {resp.status_code} {resp.text[:300]}")
+        return resp.json()
+
+    def get_site_description(self, item_id) -> str | None:
+        """The item's description exactly as the public site shows it (GET
+        /api/shop/products/:id, no login): sale description + Serial #/Year/Finish lines + the
+        footer for the item's category (Guitar/Bass, Amp, Pedal, Generic). Used verbatim on FB so
+        both always match. None if the site won't serve the item (e.g. in-store-only) or the
+        request fails — callers fall back to the old description + main footer."""
+        try:
+            resp = self.session.get(f"{self.base_url}/api/shop/products/{item_id}", timeout=15)
+            if resp.status_code >= 400:
+                return None
+            text = ((resp.json().get("record") or {}).get("saleDescription") or "").strip()
+            return text or None
+        except (requests.RequestException, ValueError):
+            return None
+
     def set_fb_listing_id(self, item_id: int, fb_listing_id: str) -> dict:
         """Retries on a dropped connection: this runs right after the browser step, which can
         leave the session's pooled keep-alive connection idle long enough for the server to

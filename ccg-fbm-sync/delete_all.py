@@ -69,6 +69,14 @@ def run_delete_all(limit: int | None = None) -> None:
     if limit:
         console.print("[bold]Test mode complete — rerun without --limit for the full sweep + CCG cleanup.[/bold]")
         return
+    if deleted == 0:
+        # Zero deletions + "empty page" usually means FB changed its page and the row selector
+        # matched nothing (happened 2026-11-26) — never wipe CCG's links on that basis.
+        console.print(
+            "[bold yellow]Nothing was deleted, so CCG was NOT touched. If your selling page still "
+            "has listings, FB's page changed — fix ROW_MENU_SELECTOR in fbm_client.py.[/bold yellow]"
+        )
+        return
     if not swept_clean:
         console.print(
             "[bold yellow]Stopped without confirming the selling page is empty — CCG was NOT touched. "

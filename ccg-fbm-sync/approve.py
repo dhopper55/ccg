@@ -26,7 +26,7 @@ from playwright.sync_api import sync_playwright
 from rich.console import Console
 
 from ccg_client import CCGClient
-from fbm_client import create_draft_listing, get_active_listings, open_draft_browser
+from fbm_client import create_draft_listing, fb_description, get_active_listings, open_draft_browser
 from reconcile import item_title, reconcile
 
 console = Console()
@@ -90,6 +90,7 @@ def run_sync() -> None:
                 description=item.get("saleDescription") or "",
                 image_urls=client.get_public_image_urls(item["id"]),
                 footer=footer,
+                full_description=fb_description(client.get_item(item["id"])),
             )
             if new_listing_id:
                 drafts_created += 1
