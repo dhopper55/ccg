@@ -10,13 +10,15 @@ Walks every for-sale CCG item that has no fb_listing_id and that you haven't alr
      - YES -> 3..6 below.
   3. AI reframe of the title + description (same as the item page's Reframe button). You see
      old vs new and pick Accept / Regenerate / Keep original.
-  4. Confirm price / tax / shipping (Enter keeps each).
+  4. Price, tax and shipping are taken from the CCG item as-is (not asked). FB gets shipping
+     only if the item allows it AND is under $500.
   5. Saves to CCG with a normal save — which updates the EXISTING Reverb / GX listings in place
      (title, description, price, shipping); nothing is ended or relisted there. If Reverb or GX
      rejects it, the save is aborted and you choose: retry with the original text, or skip.
-  6. Creates the FB listing as a DRAFT (never publishes) with the CURRENT title and
-     description, and links its id in
-     CCG — so a YES is never asked again either. Publish it from Marketplace > Drafts.
+  6. Post to which groups? Music (3) / General (5) / None.
+  7. PUBLISHES on FB (offers off; the chosen groups ticked, every other known group unticked)
+     with the CURRENT title and description, and links its id in CCG — so a YES is never asked
+     again either. Group lists: MUSIC_GROUPS / GENERAL_GROUPS in fbm_client.py.
      FB description = the item's sale description + Serial/Year/Finish lines, NO canned footer.
 
 Ctrl-C any time; the next run picks up where you left off.
@@ -29,12 +31,11 @@ from __future__ import annotations
 
 import argparse
 
-import questionary
 from playwright.sync_api import sync_playwright
 from rich.console import Console
 
 from ccg_client import CCGClient
-from fbm_client import create_draft_listing, fb_description, open_draft_browser
+from fbm_client import GENERAL_GROUPS, MUSIC_GROUPS, create_draft_listing, fb_description, open_draft_browser
 from reconcile import item_title
 
 console = Console()
@@ -49,17 +50,6 @@ def _choose(prompt: str, options: list[str]) -> str:
         if choice.isdigit() and 1 <= int(choice) <= len(options):
             return options[int(choice) - 1]
         console.print(f"Enter 1-{len(options)}.")
-
-
-def _ask_money(label: str, current: float) -> float:
-    answer = questionary.text(f"{label}:", default=f"{current:.2f}").ask()
-    if answer is None:
-        return current
-    try:
-        return float(answer.strip() or 0)
-    except ValueError:
-        console.print(f"  Couldn't parse '{answer}' as a number — keeping {current:.2f}.")
-        return current
 
 
 def _ccg_number(item: dict) -> str:
@@ -106,7 +96,23 @@ def _save(client: CCGClient, item_id, record: dict) -> bool:
         return False
 
 
-def _draft_on_fb(client: CCGClient, item_id, record: dict, footer: str | None) -> bool:
+def _ask_groups() -> list[str]:
+    choice = _choose(
+        "Post to which groups?",
+        [
+            f"Music groups ({len(MUSIC_GROUPS)})",
+            f"General groups ({len(GENERAL_GROUPS)})",
+            "No groups (Marketplace only)",
+        ],
+    )
+    if choice.startswith("Music"):
+        return list(MUSIC_GROUPS)
+    if choice.startswith("General"):
+        return list(GENERAL_GROUPS)
+    return []
+
+
+def _publish_on_fb(client: CCGClient, item_id, record: dict, footer: str | None, groups: list[str]) -> bool:
     title = item_title(record)
 
     # Browser opened only around the draft: Playwright's sync API keeps an asyncio loop running
@@ -125,24 +131,40 @@ def _draft_on_fb(client: CCGClient, item_id, record: dict, footer: str | None) -
             shipping_cost=float(record.get("fixedShippingAmount") or 0),
             footer=footer,
             full_description=fb_description(record),
+            publish_groups=groups,
         )
     finally:
         browser.close()
         playwright.stop()
 
     if not new_listing_id:
-        console.print("  [red]FB draft not saved — see the warning above. It'll come up again next run.[/red]")
+        console.print(
+            "  [red]Not published — see the warning above. It'll come up again next run "
+            "(check your FB selling page first if it said it may have published).[/red]"
+        )
         return False
+    if new_listing_id == "PUBLISHED_NO_ID":
+        console.print(
+            "  [yellow]Published on FB, but the new listing's ID wasn't captured. Open the listing on "
+            "FB and copy the number from its URL (facebook.com/marketplace/item/<ID>).[/yellow]"
+        )
+        new_listing_id = input("  Paste the FB listing ID (or Enter to skip): ").strip()
+        if not new_listing_id:
+            console.print(
+                "  [red]Not linked in CCG — set FB Listing ID on the item by hand, or the next run "
+                "will offer it again (duplicate listing).[/red]"
+            )
+            return False
     try:
         client.set_fb_listing_id(item_id, new_listing_id)
     except Exception as error:
         console.print(
-            f"  [red]Draft saved on FB (id {new_listing_id}) but linking it in CCG failed: {error}[/red]\n"
+            f"  [red]Published on FB (id {new_listing_id}) but linking it in CCG failed: {error}[/red]\n"
             f"  Set FB Listing ID = {new_listing_id} on the item by hand, or the next run will "
-            "offer it again (duplicate draft)."
+            "offer it again (duplicate listing)."
         )
         return False
-    console.print(f"  [green]Drafted on FB (id {new_listing_id}) and linked. Publish it from Marketplace > Drafts.[/green]")
+    console.print(f"  [green]Published on FB (id {new_listing_id}) and linked.[/green]")
     return True
 
 
@@ -203,37 +225,27 @@ def run(only_id: str | None = None) -> None:
             console.print("  [yellow]No sale title/description to reframe — keeping as is.[/yellow]")
             new_title, new_description = original_title, original_description
 
-        record["salePrice"] = _ask_money("Sale Price", float(record.get("salePrice") or 0))
-        record["regularPrice"] = _ask_money("Regular Price", float(record.get("regularPrice") or 0))
-        record["salesTaxIncluded"] = questionary.confirm(
-            "Sales tax included?", default=bool(record.get("salesTaxIncluded"))
-        ).ask()
-        record["allowShipping"] = questionary.confirm(
-            "Allow shipping?", default=bool(record.get("allowShipping"))
-        ).ask()
-        if record["allowShipping"]:
-            record["fixedShippingAmount"] = _ask_money(
-                "Shipping Price", float(record.get("fixedShippingAmount") or 0)
-            )
+        # Price, tax and shipping come straight from the CCG item — not asked (David 2026-11-26).
+        # FB shipping follows the item's Allow Shipping, except never at $500+ (fbm_client).
+        if (new_title, new_description) != (original_title, original_description):
+            record["saleTitle"], record["saleDescription"] = new_title, new_description
+            console.print("  Saving new title/description to CCG (updates Reverb / GX if listed)...")
+            saved = _save(client, item_id, record)
+            if not saved:
+                retry = _choose("Save was rejected.", ["List on FB with the ORIGINAL title/description", "Skip this item for now"])
+                if not retry.startswith("List"):
+                    console.print("  Skipped — it'll come up again next run.")
+                    continue
+            else:
+                console.print("  CCG saved.")
+        # else: nothing changed — no save, Reverb/GX untouched.
 
-        record["saleTitle"], record["saleDescription"] = new_title, new_description
-        console.print("  Saving to CCG (updates Reverb / GX if listed)...")
-        saved = _save(client, item_id, record)
-        if not saved and (new_title, new_description) != (original_title, original_description):
-            retry = _choose("Save was rejected.", ["Retry with the ORIGINAL title/description", "Skip this item for now"])
-            if retry.startswith("Retry"):
-                record["saleTitle"], record["saleDescription"] = original_title, original_description
-                saved = _save(client, item_id, record)
-        if not saved:
-            console.print("  Skipped — it'll come up again next run.")
-            continue
-        console.print("  CCG saved.")
-
-        if _draft_on_fb(client, item_id, client.get_item(item_id), footer):
+        groups = _ask_groups()
+        if _publish_on_fb(client, item_id, client.get_item(item_id), footer, groups):
             listed += 1
 
     console.print("\n[bold]This session[/bold]")
-    console.print(f"  Drafted on FB: {listed}")
+    console.print(f"  Published on FB: {listed}")
     console.print(f"  Answered NO:   {said_no_now}")
 
 

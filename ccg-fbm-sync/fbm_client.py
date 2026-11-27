@@ -719,6 +719,80 @@ def _turn_off_offers(page) -> bool:
     return False
 
 
+# "List in more places" groups (David 2026-11-27). FB remembers the last selection, so every
+# publish ticks the chosen set AND unticks every other known group. Matched by name (FB reorders
+# the list); names can be truncated on screen, so these are distinctive prefixes.
+MUSIC_GROUPS = [
+    "Colorado used musical gear",
+    "Colorado Music Equipment For Sale",
+    "COLORADO MUSIC GEAR BUY SELL TRADE",
+]
+GENERAL_GROUPS = [
+    "Lakewood, CO Online Yard Sale",
+    "Buy, Sell, and Trade (Northglenn, Thornton",
+    "Denver Marketplace",
+    "Parker Classifieds",
+    "Denver And Surrounding Areas Buy/sell/swap",
+]
+ALL_KNOWN_GROUPS = MUSIC_GROUPS + GENERAL_GROUPS
+
+
+def _heading_visible(page, text: str) -> bool:
+    try:
+        return page.get_by_text(text, exact=True).filter(visible=True).count() > 0
+    except Exception:
+        return False
+
+
+def _group_pattern(name: str) -> re.Pattern:
+    # Case-insensitive, any whitespace (long names wrap onto two lines).
+    return re.compile(r"\s+".join(re.escape(word) for word in name.split()), re.I)
+
+
+def _find_group_checkbox(page, name: str):
+    pattern = _group_pattern(name)
+    for _ in range(12):
+        box = page.get_by_role("checkbox", name=pattern)
+        if box.count() > 0:
+            return box.first
+        box = page.get_by_role("checkbox").filter(has_text=pattern)
+        if box.count() > 0:
+            return box.first
+        # Not rendered yet: scroll the left panel (where the group list lives) and retry.
+        page.mouse.move(300, 700)
+        page.mouse.wheel(0, 500)
+        page.wait_for_timeout(600)
+    return None
+
+
+def _set_groups(page, wanted: list[str]) -> tuple[list[str], list[str]]:
+    """Ticks every group in `wanted` and unticks every other known group. Returns
+    (ticked, not_found). Raises if a click doesn't take."""
+    ticked: list[str] = []
+    not_found: list[str] = []
+    # Untick first, then tick — each pass scrolls back to the top.
+    for want_on, names in ((False, [g for g in ALL_KNOWN_GROUPS if g not in wanted]), (True, wanted)):
+        for name in names:
+            page.mouse.move(300, 700)
+            page.mouse.wheel(0, -5000)
+            page.wait_for_timeout(400)
+            box = _find_group_checkbox(page, name)
+            if box is None:
+                if want_on:
+                    not_found.append(name)
+                continue
+            box.scroll_into_view_if_needed()
+            is_on = box.get_attribute("aria-checked") == "true"
+            if is_on != want_on:
+                box.click(timeout=5000)
+                page.wait_for_timeout(800)
+                if (box.get_attribute("aria-checked") == "true") != want_on:
+                    raise RuntimeError(f"clicked group '{name}' but it didn't {'tick' if want_on else 'untick'}")
+            if want_on:
+                ticked.append(name)
+    return ticked, not_found
+
+
 def create_draft_listing(
     context,
     title: str,
@@ -730,6 +804,7 @@ def create_draft_listing(
     shipping_cost=None,
     footer: str | None = None,
     full_description: str | None = None,
+    publish_groups: list[str] | None = None,
 ) -> str | None:
     """Fills Facebook's real "Item for sale" create-listing form — photos, title, price,
     category (fixed at Musical Instruments), condition, description — advances to the
@@ -836,9 +911,10 @@ def create_draft_listing(
     # A $0 shipping cost is free shipping, not "no shipping" (changed 2026-10-28) — only
     # allow_shipping decides whether the draft ships.
     use_shipping = bool(allow_shipping)
-    if use_shipping and float(price or 0) > FB_MAX_SHIPPING_PRICE:
+    # David 2026-11-26: no FB shipping at $500 or more.
+    if use_shipping and float(price or 0) >= FB_MAX_SHIPPING_PRICE:
         print(
-            f"  FB doesn't allow shipping over ${FB_MAX_SHIPPING_PRICE} — drafting as local pickup only "
+            f"  No FB shipping at ${FB_MAX_SHIPPING_PRICE} or more — drafting as local pickup only "
             "(CCG's shipping settings are unchanged)."
         )
         use_shipping = False
@@ -900,6 +976,9 @@ def create_draft_listing(
                         new_listing_id = str(listing_id)
         save_trace.append(f"{friendly}: data keys {keys} | {text[:300]!r}")
 
+    if publish_groups is not None:
+        return _publish(page, publish_groups, _capture_listing_id, save_trace, lambda: new_listing_id)
+
     page.on("response", _capture_listing_id)
     print(f"  Saving draft from: {_step_summary(page)}")
     page.get_by_text("Save draft", exact=True).first.click()
@@ -931,3 +1010,69 @@ def create_draft_listing(
         page.screenshot(path=str(DEBUG_SCREENSHOT))
     page.close()
     return new_listing_id if saved else None
+
+
+def _publish(page, groups: list[str], capture, trace: list[str], listing_id) -> str | None:
+    """publish_groups mode of create_draft_listing (David 2026-11-27): from the Delivery step,
+    walk Allow offers (OFF) -> List in more places (set groups) -> Publish. Returns the new
+    listing id, or None if it didn't publish. If it published but the id wasn't captured,
+    returns the string "PUBLISHED_NO_ID"."""
+    try:
+        for _ in range(6):
+            if _heading_visible(page, "List in more places"):
+                break
+            if _heading_visible(page, "Allow offers"):
+                if not _turn_off_offers(page):
+                    raise RuntimeError("couldn't turn Allow offers off")
+            next_button = page.get_by_role("button", name="Next", exact=True)
+            for _ in range(30):
+                if next_button.count() and next_button.first.get_attribute("aria-disabled") != "true":
+                    break
+                page.wait_for_timeout(1000)
+            next_button.first.click(timeout=8000)
+            page.wait_for_timeout(2500)
+        else:
+            raise RuntimeError(f"never reached 'List in more places' ({_step_summary(page)})")
+
+        ticked, not_found = _set_groups(page, groups)
+        print(f"  Groups: {', '.join(ticked) or 'none'}")
+        if not_found:
+            print(f"  WARNING — group(s) not found, skipped: {', '.join(not_found)}")
+
+        publish = page.get_by_role("button", name="Publish", exact=True)
+        for _ in range(20):
+            if publish.count() and publish.first.get_attribute("aria-disabled") != "true":
+                break
+            page.wait_for_timeout(1000)
+        else:
+            raise RuntimeError("the Publish button never became clickable")
+    except Exception as error:
+        _pause_for_inspection(page, f"Couldn't get to Publish — NOT published: {error}")
+        page.close()
+        return None
+
+    page.on("response", capture)
+    publish.first.click()
+    published = False
+    for _ in range(40):
+        page.wait_for_timeout(1000)
+        if "/marketplace/create/item" not in page.url or listing_id():
+            published = True
+            break
+    page.wait_for_timeout(2000)  # let the create response finish streaming
+    page.remove_listener("response", capture)
+
+    if not published:
+        print(
+            "  WARNING: clicked Publish but FB didn't leave the form within 40s — check your "
+            f"selling page before re-running (it may have published). Page: {_step_summary(page)}"
+        )
+        page.screenshot(path=str(DEBUG_SCREENSHOT))
+        page.close()
+        return None
+    page.close()
+    if listing_id():
+        print("  Published on Facebook.")
+        return listing_id()
+    DEBUG_DUMP.write_text("GraphQL POSTs seen during Publish:\n\n" + "\n\n".join(trace))
+    return "PUBLISHED_NO_ID"
